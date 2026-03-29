@@ -1,4 +1,4 @@
-# GRIP-seq Snakemake Analysis Pipeline
+# Circular RNA Snakemake Analysis Pipeline
 
 This repository provides a reproducible Snakemake workflow for **GRIP-seq** paired-end sequencing data. The pipeline performs per-lane QC with fastp, generates MultiQC summaries, aligns reads to a reference genome with STAR while retaining only uniquely mapped reads, and produces genome-browser-ready tracks including a **GRIP-seq 5′ end signal** derived from **Read 2 first base** (1 bp, strand-agnostic) with CPM normalization. BigWig tracks are generated both **with** and **without** blacklist filtering.
 
