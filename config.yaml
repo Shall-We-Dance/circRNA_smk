@@ -5,7 +5,7 @@ threads:
   featurecounts: 8
 
 reference:
-  # STAR genome index folder (will be created by rule star_index if missing)
+  # Pre-built STAR genome index folder
   star_index: "resources/genomeIndex/refGen"
   # Example: GCF_002204515.2.fa
   fasta: "resources/genomeIndex/GCF_002204515.2.fa"
@@ -31,18 +31,6 @@ fastp:
   # dedup + adapter trimming
   dedup_adapter:
     dedup: true
-
-  # Optional fixed trimming for GRIP-seq-like protocol; set all 0 to disable
-  grip_trim:
-    disable_adapter_trimming: false
-    trim_front_r1: 0
-    trim_tail_r1: 0
-    trim_front_r2: 0
-    trim_tail_r2: 0
-
-star:
-  # STAR genomeGenerate parameter
-  sjdb_overhang: 150
 
 filtering:
   min_mapq: 11

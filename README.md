@@ -1,6 +1,6 @@
 # Circular RNA Snakemake Analysis Pipeline
 
-This repository provides a reproducible Snakemake workflow for analyzing circular RNA from paired-end ribo-depleted RNA-seq data. The pipeline performs per-lane QC with fastp, generates MultiQC summaries, aligns reads to a reference genome with STAR while retaining only uniquely mapped reads, and produces genome-browser-ready tracks including a **GRIP-seq 5′ end signal** derived from **Read 2 first base** (1 bp, strand-agnostic) with CPM normalization. BigWig tracks are generated both **with** and **without** blacklist filtering.
+This repository provides a reproducible Snakemake workflow for analyzing circular RNA from paired-end ribo-depleted RNA-seq data. The pipeline performs per-lane QC with fastp, generates MultiQC summaries, aligns reads to a reference genome with STAR while retaining only uniquely mapped reads, and performs downstream circRNA detection and quantification.
 
 ## Overview
 
@@ -16,22 +16,11 @@ This repository provides a reproducible Snakemake workflow for analyzing circula
 - **Alignment**
   - `results/star/<sample>/<sample>.unique.mapq11.sorted.bam`
   - `results/star/<sample>/<sample>.unique.mapq11.sorted.bam.bai`
-- **Signal tracks (BigWig, CPM normalized)**
-  - BAM coverage:
-    - `results/bigwig/<sample>/<sample>.bamCPM.noblacklist.bw`
-    - `results/bigwig/<sample>/<sample>.bamCPM.blacklist.bw`
-  - GRIP-seq 5′ end signal (Read2 first base, 1 bp):
-    - `results/bigwig/<sample>/<sample>.R2firstbaseCPM.noblacklist.bw`
-    - `results/bigwig/<sample>/<sample>.R2firstbaseCPM.blacklist.bw`
-- **Genome browser track file**
-  - `results/tracks/<sample>/<sample>.tracks.txt`
-
 ### Intermediate file handling
 To minimize storage footprint, intermediate FASTQs produced by fastp and merged FASTQs are marked as temporary and are removed automatically by Snakemake. Final deliverables include:
 - QC reports (fastp + multiqc)
 - Final BAM + BAI
-- BigWig tracks (coverage and 5′ end signal; with/without blacklist)
-- Track text file
+- CIRI3 outputs and count matrices
 
 ## Pipeline steps
 
@@ -50,18 +39,8 @@ To minimize storage footprint, intermediate FASTQs produced by fastp and merged 
 5. **Post-alignment MAPQ filtering**  
    The STAR BAM is further filtered with `MAPQ > 10` (implemented as `samtools view -q 11`). The resulting BAM is coordinate-sorted and indexed.
 
-6. **BAM coverage BigWig (CPM)**  
-   BigWigs are generated from the filtered BAM using deepTools `bamCoverage` with `--normalizeUsing CPM`, producing tracks with and without blacklist filtering.
-
-7. **GRIP-seq 5′ end signal extraction (Read2 first base)**  
-   The GRIP-seq 5′ signal is defined as the **first sequenced base of Read2**, projected onto the reference genome as a **1 bp** position per Read2 alignment:
-   - If Read2 aligns to the **forward** strand: position = `reference_start`
-   - If Read2 aligns to the **reverse** strand: position = `reference_end - 1`
-
-   The signal is **strand-agnostic** (no +/- split) and is normalized to **CPM**, where the denominator is the number of usable mapped Read2 records after filtering (MAPQ and alignment flags). Tracks are generated with and without blacklist filtering.
-
-8. **Blacklist filtering**  
-   ENCODE blacklist BED files are downloaded from the Boyle-Lab blacklist repository and cached under `resources/blacklist/`. BigWigs are produced in paired versions (with/without blacklist) for both coverage and 5′ signal.
+6. **circRNA quantification and aggregation**  
+   Gene-level quantification is generated with featureCounts and circular RNA detection is run with CIRI3, producing per-sample outputs and merged summary matrices.
 
 ## Requirements
 
@@ -71,8 +50,7 @@ To minimize storage footprint, intermediate FASTQs produced by fastp and merged 
 - samtools
 - fastp
 - MultiQC
-- deepTools
-- Python packages: `pysam`, `pyBigWig`
+- Python packages: `pysam`
 
 All dependencies are provided via the conda environments under `workflow/rules/envs/`.
 
@@ -97,17 +75,13 @@ Edit `config.yaml`.
 
 Key fields:
 
-* `blacklist.id`: short identifier used for naming cached blacklist files (can be any custom genome ID)
-* `reference.star_index`: STAR genome index directory
+* `reference.star_index`: pre-built STAR genome index directory
 * `reference.fasta`: reference FASTA (used to generate `.fai` / chrom sizes)
 * `samples`: mapping of sample name to lists of FASTQs for R1 and R2
 
 Example:
 
 ```yaml
-blacklist:
-  id: "custom_genome"
-
 reference:
   star_index: "/path/to/STAR/index"
   fasta: "/path/to/genome.fa"
@@ -126,6 +100,7 @@ samples:
 Notes:
 
 * The workflow assumes paired-end reads and requires both R1 and R2 lists to be the same length per sample.
+* STAR genome index construction is **not** performed inside this workflow; please prepare the index in advance and point `reference.star_index` to it.
 
 ## Running the workflow
 
@@ -138,32 +113,6 @@ Dry run:
 ```bash
 snakemake -s workflow/Snakefile -n
 ```
-
-## Outputs for genome browsers
-
-BigWig files can be loaded directly into IGV or UCSC Genome Browser (if hosted). A simple UCSC-style track file is generated at:
-
-* `results/tracks/<sample>/<sample>.tracks.txt`
-
-If using UCSC, update `bigDataUrl=` paths to valid HTTP(S) URLs pointing to your hosted BigWigs.
-
-## Notes on normalization
-
-* **BAM coverage tracks** use deepTools `bamCoverage --normalizeUsing CPM`.
-* **GRIP-seq 5′ end tracks** are normalized by **CPM using Read2 counts** (one event per Read2), consistent with the Read2-first-base definition of the GRIP-seq 5′ signal.
-
-## Troubleshooting
-
-* **No reads after filtering**: If the 5′ extraction step fails with “No usable Read2 records”, confirm:
-  * BAM contains properly paired alignments
-  * Reads are mapped
-  * MAPQ filtering is not overly stringent for your alignment settings
-
-* **Blacklist download issues**: Ensure network access to GitHub raw URLs; cached files are stored under `resources/blacklist/`.
-
-## Citation / attribution
-
-Blacklist BED files are retrieved from the Boyle-Lab blacklist repository (ENCODE blacklist lists). Please cite the appropriate sources in publications as required by the blacklist resource and your analysis conventions.
 
 ## Contact
 

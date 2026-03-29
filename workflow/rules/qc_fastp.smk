@@ -40,12 +40,7 @@ rule fastp_sample_level:
     conda:
         "envs/qc.yaml"
     params:
-        dedup_arg=("--dedup" if bool(config.get("fastp", {}).get("dedup_adapter", {}).get("dedup", True)) else ""),
-        disable_adapter_arg=("--disable_adapter_trimming" if bool(config.get("fastp", {}).get("grip_trim", {}).get("disable_adapter_trimming", False)) else ""),
-        trim_f=int(config.get("fastp", {}).get("grip_trim", {}).get("trim_front_r1", 0)),
-        trim_t=int(config.get("fastp", {}).get("grip_trim", {}).get("trim_tail_r1", 0)),
-        trim_F=int(config.get("fastp", {}).get("grip_trim", {}).get("trim_front_r2", 0)),
-        trim_T=int(config.get("fastp", {}).get("grip_trim", {}).get("trim_tail_r2", 0))
+        dedup_arg=("--dedup" if bool(config.get("fastp", {}).get("dedup_adapter", {}).get("dedup", True)) else "")
     shell:
         r"""
         set -euo pipefail
@@ -56,9 +51,6 @@ rule fastp_sample_level:
           -o {output.clean_r1} -O {output.clean_r2} \
           --thread {threads} \
           {params.dedup_arg} \
-          {params.disable_adapter_arg} \
-          -f {params.trim_f} -t {params.trim_t} \
-          -F {params.trim_F} -T {params.trim_T} \
           --html {output.html} --json {output.json} \
           > {log} 2>&1
         """
