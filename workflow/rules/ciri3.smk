@@ -70,20 +70,19 @@ rule ciri3_detect:
     params:
         jar=config["ciri3"]["jar"],
         outprefix=f"{OUTDIR}/ciri3/all_samples.ciri3",
-        ma=int(config.get("ciri3", {}).get("ma", 1)),
-        w=int(config.get("ciri3", {}).get("w", 1)),
+        Ma=int(config.get("ciri3", {}).get("Ma", 1)),
+        W=int(config.get("ciri3", {}).get("W", 1)),
         a=("-A" if bool(config.get("ciri3", {}).get("a", True)) else "")
     shell:
         r"""
         set -euo pipefail
         mkdir -p $(dirname {output.result}) $(dirname {log})
         java -jar {params.jar} \
-          -G {input.gtf} \
-          -Ma {params.ma} \
-          -W {params.w} \
+          -A {input.gtf} \
+          -Ma {params.Ma} \
+          -W {params.W} \
           -I {input.tsv} \
           -O {params.outprefix} \
           -F {input.fasta} \
-          {params.a} \
           > {log} 2>&1
         """

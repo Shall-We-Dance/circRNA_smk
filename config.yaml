@@ -40,9 +40,8 @@ ciri3:
   # local CIRI3 jar path
   jar: "/path/to/CIRI3_v1.0.1.jar"
   # CIRI3 main parameters
-  ma: 1
-  w: 1
-  a: true
+  Ma: 1
+  W: 1
 
 output:
   dir: "results"
