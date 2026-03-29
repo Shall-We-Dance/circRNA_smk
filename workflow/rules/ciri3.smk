@@ -20,21 +20,6 @@ rule star_bam_index_for_ciri3:
         """
 
 
-rule unique_bam_index_for_ciri3:
-    input:
-        bam=f"{OUTDIR}/star/{{sample}}/{{sample}}.unique.mapq11.sorted.bam"
-    output:
-        bai=f"{OUTDIR}/star/{{sample}}/{{sample}}.unique.mapq11.sorted.bam.bai"
-    threads: int(config["threads"]["samtools"])
-    conda:
-        "envs/samtools.yaml"
-    shell:
-        r"""
-        set -euo pipefail
-        samtools index -@ {threads} {input.bam}
-        """
-
-
 rule ciri3_samples_tsv_star:
     input:
         bams=expand(f"{OUTDIR}/tmp/star/{{sample}}/{{sample}}.Aligned.sortedByCoord.out.bam", sample=SAMPLES)
