@@ -16,11 +16,16 @@ This repository provides a reproducible Snakemake workflow for analyzing circula
 - **Alignment**
   - `results/star/<sample>/<sample>.unique.mapq11.sorted.bam`
   - `results/star/<sample>/<sample>.unique.mapq11.sorted.bam.bai`
+- **Quantification / circRNA**
+  - `results/featurecount/totalRNA.counts.txt`
+  - `results/ciri3/all_samples.ciri3`
+  - `results/ciri3/all_samples.ciri3.BSJ_Matrix`
+  - `results/ciri3/all_samples.ciri3.FSJ_Matrix`
 ### Intermediate file handling
 To minimize storage footprint, intermediate FASTQs produced by fastp and merged FASTQs are marked as temporary and are removed automatically by Snakemake. Final deliverables include:
 - QC reports (fastp + multiqc)
 - Final BAM + BAI
-- CIRI3 outputs and count matrices
+- CIRI3 outputs and featureCounts count matrices
 
 ## Pipeline steps
 
@@ -50,9 +55,10 @@ To minimize storage footprint, intermediate FASTQs produced by fastp and merged 
 - samtools
 - fastp
 - MultiQC
+- CIRI3 (download from https://github.com/gyjames/CIRI3 ; this workflow uses the Java 18 build)
 - Python packages: `pysam`
 
-All dependencies are provided via the conda environments under `workflow/rules/envs/`.
+All dependencies are provided via the conda environments under `workflow/rules/envs/` (including OpenJDK 18 for CIRI3).
 
 ## Installation
 

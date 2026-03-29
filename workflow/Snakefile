@@ -8,6 +8,7 @@ OUTDIR = config["output"]["dir"]
 include: "rules/qc_fastp.smk"
 include: "rules/align_star.smk"
 include: "rules/bam_post.smk"
+include: "rules/featurecount.smk"
 include: "rules/ciri3.smk"
 
 rule all:
@@ -23,7 +24,7 @@ rule all:
         expand(f"{OUTDIR}/star/{{sample}}/{{sample}}.unique.mapq11.sorted.bam.bai", sample=SAMPLES),
 
         # featureCounts + CIRI3
-        f"{OUTDIR}/ciri_star/totalRNA.counts.txt",
+        f"{OUTDIR}/featurecount/totalRNA.counts.txt",
         f"{OUTDIR}/ciri3/all_samples.ciri3",
         f"{OUTDIR}/ciri3/all_samples.ciri3.BSJ_Matrix",
         f"{OUTDIR}/ciri3/all_samples.ciri3.FSJ_Matrix",
