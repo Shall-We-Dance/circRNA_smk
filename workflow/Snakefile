@@ -7,7 +7,7 @@ OUTDIR = config["output"]["dir"]
 
 include: "rules/qc_fastp.smk"
 include: "rules/align_star.smk"
-include: "rules/bam_post.smk"
+include: "rules/bam_unique.smk"
 include: "rules/featurecount.smk"
 include: "rules/ciri3.smk"
 

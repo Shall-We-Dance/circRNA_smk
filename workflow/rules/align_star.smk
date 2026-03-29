@@ -11,7 +11,7 @@ rule star_align_ciri3:
         r1=f"{OUTDIR}/tmp/fastp/{{sample}}_R1.fastq.gz",
         r2=f"{OUTDIR}/tmp/fastp/{{sample}}_R2.fastq.gz"
     output:
-        bam=temp(f"{OUTDIR}/tmp/star/{{sample}}/{{sample}}.Aligned.sortedByCoord.out.bam"),
+        bam=f"{OUTDIR}/tmp/star/{{sample}}/{{sample}}.Aligned.sortedByCoord.out.bam",
         unmapped_r1=temp(f"{OUTDIR}/tmp/star/{{sample}}/{{sample}}.Unmapped.out.mate1"),
         unmapped_r2=temp(f"{OUTDIR}/tmp/star/{{sample}}/{{sample}}.Unmapped.out.mate2"),
         log_final=f"{OUTDIR}/star/{{sample}}/{{sample}}.Log.final.out",
