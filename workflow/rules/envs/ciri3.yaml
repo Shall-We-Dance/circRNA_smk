@@ -1,6 +1,6 @@
 name: ciri3
 channels: [conda-forge, bioconda]
 dependencies:
-  - openjdk=17
+  - openjdk=18
   - subread
   - samtools

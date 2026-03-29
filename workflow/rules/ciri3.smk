@@ -20,24 +20,7 @@ rule star_bam_index_for_ciri3:
         """
 
 
-rule featurecounts_totalrna:
-    input:
-        bams=expand(f"{OUTDIR}/tmp/star/{{sample}}/{{sample}}.Aligned.sortedByCoord.out.bam", sample=SAMPLES)
-    output:
-        counts=f"{OUTDIR}/ciri_star/totalRNA.counts.txt"
-    log:
-        "logs/featureCounts.log"
-    threads: int(config["threads"].get("featurecounts", config["threads"]["star"]))
-    conda:
-        "envs/ciri3.yaml"
-    params:
-        gtf=config["reference"]["gtf"]
-    shell:
-        r"""
-        set -euo pipefail
-        mkdir -p $(dirname {output.counts}) $(dirname {log})
-        featureCounts -T {threads} -p -a {params.gtf} -o {output.counts} {input.bams} > {log} 2>&1
-        """
+
 
 
 rule ciri3_samples_tsv:
@@ -69,7 +52,7 @@ rule ciri3_detect:
         "envs/ciri3.yaml"
     params:
         jar=config["ciri3"]["jar"],
-        outprefix=f"{OUTDIR}/ciri3/all_samples.ciri3",
+        outprefix=f"{OUTDIR}/ciri3/all_samples",
         ma=int(config.get("ciri3", {}).get("ma", 1)),
         w=int(config.get("ciri3", {}).get("w", 1)),
         a=("-A" if bool(config.get("ciri3", {}).get("a", True)) else "")
@@ -86,4 +69,13 @@ rule ciri3_detect:
           -F {input.fasta} \
           {params.a} \
           > {log} 2>&1
+
+        # CIRI3 naming differs across releases; normalize to expected targets.
+        if [ ! -e {output.result} ] && [ -e {params.outprefix}.ciri3 ]; then cp {params.outprefix}.ciri3 {output.result}; fi
+        if [ ! -e {output.bsj} ] && [ -e {params.outprefix}.ciri3.BSJ_Matrix ]; then cp {params.outprefix}.ciri3.BSJ_Matrix {output.bsj}; fi
+        if [ ! -e {output.fsj} ] && [ -e {params.outprefix}.ciri3.FSJ_Matrix ]; then cp {params.outprefix}.ciri3.FSJ_Matrix {output.fsj}; fi
+
+        test -s {output.result}
+        test -s {output.bsj}
+        test -s {output.fsj}
         """
