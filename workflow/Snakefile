@@ -25,9 +25,12 @@ rule all:
 
         # featureCounts + CIRI3
         f"{OUTDIR}/featurecount/totalRNA.counts.txt",
-        f"{OUTDIR}/ciri3/all_samples.ciri3",
-        f"{OUTDIR}/ciri3/all_samples.ciri3.BSJ_Matrix",
-        f"{OUTDIR}/ciri3/all_samples.ciri3.FSJ_Matrix",
+        f"{OUTDIR}/ciri3/star.all_samples.ciri3",
+        f"{OUTDIR}/ciri3/star.all_samples.ciri3.BSJ_Matrix",
+        f"{OUTDIR}/ciri3/star.all_samples.ciri3.FSJ_Matrix",
+        f"{OUTDIR}/ciri3/unique.all_samples.ciri3",
+        f"{OUTDIR}/ciri3/unique.all_samples.ciri3.BSJ_Matrix",
+        f"{OUTDIR}/ciri3/unique.all_samples.ciri3.FSJ_Matrix",
 
         # summary QC
         f"{OUTDIR}/qc/multiqc/multiqc_report.html"
