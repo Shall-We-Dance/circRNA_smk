@@ -32,14 +32,6 @@ fastp:
   dedup_adapter:
     dedup: true
 
-  # Optional fixed trimming for GRIP-seq-like protocol; set all 0 to disable
-  grip_trim:
-    disable_adapter_trimming: false
-    trim_front_r1: 0
-    trim_tail_r1: 0
-    trim_front_r2: 0
-    trim_tail_r2: 0
-
 star:
   # STAR genomeGenerate parameter
   sjdb_overhang: 150
