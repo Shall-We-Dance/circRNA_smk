@@ -5,7 +5,7 @@ threads:
   featurecounts: 8
 
 reference:
-  # STAR genome index folder (will be created by rule star_index if missing)
+  # STAR genome index folder (must be prebuilt, e.g. contains SA file)
   star_index: "resources/genomeIndex/refGen"
   # Example: GCF_002204515.2.fa
   fasta: "resources/genomeIndex/GCF_002204515.2.fa"
@@ -32,9 +32,6 @@ fastp:
   dedup_adapter:
     dedup: true
 
-star:
-  # STAR genomeGenerate parameter
-  sjdb_overhang: 150
 
 filtering:
   min_mapq: 11

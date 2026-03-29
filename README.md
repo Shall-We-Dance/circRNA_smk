@@ -1,6 +1,6 @@
 # Circular RNA Snakemake Analysis Pipeline
 
-This repository provides a reproducible Snakemake workflow for analyzing circular RNA from paired-end ribo-depleted RNA-seq data. The pipeline performs per-lane QC with fastp, generates MultiQC summaries, aligns reads to a reference genome with STAR while retaining only uniquely mapped reads, and performs downstream circRNA detection and quantification.
+This repository provides a reproducible Snakemake workflow for analyzing circular RNA from paired-end ribo-depleted RNA-seq data. The pipeline performs per-lane QC with fastp, generates MultiQC summaries, aligns reads to a reference genome with a prebuilt STAR index while retaining only uniquely mapped reads, and performs downstream circRNA detection and quantification.
 
 ## Overview
 
@@ -75,8 +75,9 @@ Edit `config.yaml`.
 
 Key fields:
 
-* `reference.star_index`: STAR genome index directory
-* `reference.fasta`: reference FASTA (used to generate `.fai` / chrom sizes)
+* `reference.star_index`: prebuilt STAR genome index directory (must already contain index files such as `SA`)
+* `reference.fasta`: reference FASTA (used by downstream steps such as CIRI3 support files)
+* `reference.gtf`: reference annotation GTF
 * `samples`: mapping of sample name to lists of FASTQs for R1 and R2
 
 Example:
@@ -100,6 +101,7 @@ samples:
 Notes:
 
 * The workflow assumes paired-end reads and requires both R1 and R2 lists to be the same length per sample.
+* STAR genome index construction is **not** performed in this workflow; build the STAR index in advance and point `reference.star_index` to that directory.
 
 ## Running the workflow
 
