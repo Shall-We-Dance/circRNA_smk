@@ -4,35 +4,10 @@ import os
 OUTDIR = config["output"]["dir"]
 
 
-rule star_index:
-    input:
-        fasta=config["reference"]["fasta"],
-        gtf=config["reference"]["gtf"]
-    output:
-        sa=f"{config['reference']['star_index']}/SA"
-    params:
-        index=config["reference"]["star_index"],
-        overhang=int(config.get("star", {}).get("sjdb_overhang", 150))
-    threads: int(config["threads"]["star"])
-    conda:
-        "envs/star.yaml"
-    shell:
-        r"""
-        set -euo pipefail
-        mkdir -p {params.index}
-        STAR \
-          --runMode genomeGenerate \
-          --runThreadN {threads} \
-          --genomeDir {params.index} \
-          --genomeFastaFiles {input.fasta} \
-          --sjdbGTFfile {input.gtf} \
-          --sjdbOverhang {params.overhang}
-        """
-
 
 rule star_align_ciri3:
     input:
-        idx=rules.star_index.output.sa,
+        idx_sa=f"{config['reference']['star_index']}/SA",
         r1=f"{OUTDIR}/tmp/fastp/{{sample}}_R1.fastq.gz",
         r2=f"{OUTDIR}/tmp/fastp/{{sample}}_R2.fastq.gz"
     output:
