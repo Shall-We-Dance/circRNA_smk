@@ -1,30 +1,17 @@
-# workflow/config.yaml
-
 threads:
   fastp: 8
   star: 16
   samtools: 8
+  featurecounts: 8
 
-# Reference & index (STAR)
 reference:
-  star_index: "/path/to/STAR/index"     # directory produced by STAR --runMode genomeGenerate
-  fasta: "/path/to/genome.fa"           # used for .fai (chrom sizes)
-  gtf: "/path/to/genes.gtf"             # optional, can be "" if not used
+  # STAR genome index folder (will be created by rule star_index if missing)
+  star_index: "resources/genomeIndex/refGen"
+  # Example: GCF_002204515.2.fa
+  fasta: "resources/genomeIndex/GCF_002204515.2.fa"
+  # Example: GCF_002204515.2_AaegL5.0.ncbiRefSeq.gtf
+  gtf: "resources/genomeIndex/GCF_002204515.2_AaegL5.0.ncbiRefSeq.gtf"
 
-# Blacklist (manual)
-# Boyle-Lab blacklist repository (examples):
-#   https://github.com/Boyle-Lab/Blacklist
-#   https://github.com/Boyle-Lab/Blacklist/tree/master/lists
-blacklist:
-  cache_dir: "resources/blacklist"
-  # Provide exactly one of the following:
-  # path: "/path/to/custom.blacklist.bed"
-  # url: "https://raw.githubusercontent.com/Boyle-Lab/Blacklist/master/lists/dm6-blacklist.v2.bed.gz"
-
-# Enable blacklist filtering (requires blacklist.path or blacklist.url)
-filter_blacklist: true
-
-# Samples: multiple technical replicates (or lanes) under one sample
 samples:
   sampleA:
     R1:
@@ -40,23 +27,33 @@ samples:
     R2:
       - "raw/sampleB_R2.fastq.gz"
 
-# fastp settings
 fastp:
-
-  # Step1: QC + Illumina adapter trimming + dedup
+  # dedup + adapter trimming
   dedup_adapter:
-    enable: true
     dedup: true
 
+  # Optional fixed trimming for GRIP-seq-like protocol; set all 0 to disable
+  grip_trim:
+    disable_adapter_trimming: false
+    trim_front_r1: 0
+    trim_tail_r1: 0
+    trim_front_r2: 0
+    trim_tail_r2: 0
 
-# STAR alignment settings
 star:
-  extra: ""  # optional additional args
+  # STAR genomeGenerate parameter
+  sjdb_overhang: 150
 
-# Filtering
 filtering:
-  min_mapq: 11   # MAPQ > 10
+  min_mapq: 11
 
-# Output naming
+ciri3:
+  # local CIRI3 jar path
+  jar: "/path/to/CIRI3_v1.0.1.jar"
+  # CIRI3 main parameters
+  ma: 1
+  w: 1
+  a: true
+
 output:
   dir: "results"

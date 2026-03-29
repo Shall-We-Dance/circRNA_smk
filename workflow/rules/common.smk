@@ -16,7 +16,7 @@ rule faidx_reference:
 
 rule get_blacklist:
     output:
-        bed=f"{config['blacklist']['cache_dir']}/{config['genome']}-blacklist.bed"
+        bed=lambda wc: f"{config['blacklist']['cache_dir']}/{config['blacklist'].get('id', 'custom')}-blacklist.bed"
     conda:
         "envs/py_signal.yaml"
     script:
