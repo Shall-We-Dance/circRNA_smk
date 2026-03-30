@@ -5,7 +5,7 @@ SAMPLES = list(config["samples"].keys())
 
 rule featurecounts_totalrna:
     input:
-        bams=expand(f"{OUTDIR}/tmp/star/{{sample}}/{{sample}}.Aligned.sortedByCoord.out.bam", sample=SAMPLES)
+        bams=expand(f"{OUTDIR}/star/{{sample}}/{{sample}}.Aligned.sortedByCoord.out.bam", sample=SAMPLES)
     output:
         counts=f"{OUTDIR}/featurecount/totalRNA.counts.txt"
     log:
