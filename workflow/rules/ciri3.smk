@@ -7,9 +7,9 @@ SAMPLES = list(config["samples"].keys())
 
 rule star_bam_index_for_ciri3:
     input:
-        bam=f"{OUTDIR}/tmp/star/{{sample}}/{{sample}}.Aligned.sortedByCoord.out.bam"
+        bam=f"{OUTDIR}/star/{{sample}}/{{sample}}.Aligned.sortedByCoord.out.bam"
     output:
-        bai=f"{OUTDIR}/tmp/star/{{sample}}/{{sample}}.Aligned.sortedByCoord.out.bam.bai"
+        bai=f"{OUTDIR}/star/{{sample}}/{{sample}}.Aligned.sortedByCoord.out.bam.bai"
     threads: int(config["threads"]["samtools"])
     conda:
         "envs/samtools.yaml"
@@ -22,15 +22,18 @@ rule star_bam_index_for_ciri3:
 
 rule ciri3_samples_tsv_star:
     input:
-        bams=expand(f"{OUTDIR}/tmp/star/{{sample}}/{{sample}}.Aligned.sortedByCoord.out.bam", sample=SAMPLES)
+        chimeric=expand(f"{OUTDIR}/star/{{sample}}/{{sample}}.Chimeric.out.junction", sample=SAMPLES),
+        sam=expand(f"{OUTDIR}/star/{{sample}}/{{sample}}.Aligned.out.sam", sample=SAMPLES),
+        bwa=expand(f"{OUTDIR}/star/{{sample}}/{{sample}}.bwa.sam", sample=SAMPLES)
     output:
         tsv=f"{OUTDIR}/ciri3/samples.star.tsv"
     run:
         os.makedirs(os.path.dirname(output.tsv), exist_ok=True)
         with open(output.tsv, "w", encoding="utf-8") as fout:
-            for bam in input.bams:
-                sample = os.path.basename(bam).replace(".Aligned.sortedByCoord.out.bam", "")
-                fout.write(f"{sample}\t{bam}\n")
+            for chimeric, sam, bwa in zip(input.chimeric, input.sam, input.bwa):
+                # CIRI3 STAR mode expects one column:
+                # Chimeric.out.junction,Aligned.out.sam,bwa.sam
+                fout.write(f"{chimeric},{sam},{bwa}\n")
 
 
 rule ciri3_samples_tsv_unique:
@@ -51,7 +54,7 @@ rule ciri3_detect_star:
         tsv=f"{OUTDIR}/ciri3/samples.star.tsv",
         fasta=config["reference"]["fasta"],
         gtf=config["reference"]["gtf"],
-        bais=expand(f"{OUTDIR}/tmp/star/{{sample}}/{{sample}}.Aligned.sortedByCoord.out.bam.bai", sample=SAMPLES)
+        bais=expand(f"{OUTDIR}/star/{{sample}}/{{sample}}.Aligned.sortedByCoord.out.bam.bai", sample=SAMPLES)
     output:
         result=f"{OUTDIR}/ciri3/star.all_samples.ciri3",
         bsj=f"{OUTDIR}/ciri3/star.all_samples.ciri3.BSJ_Matrix",
