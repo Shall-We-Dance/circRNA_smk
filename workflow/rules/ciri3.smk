@@ -23,17 +23,17 @@ rule star_bam_index_for_ciri3:
 rule ciri3_samples_tsv_star:
     input:
         chimeric=expand(f"{OUTDIR}/star/{{sample}}/{{sample}}.Chimeric.out.junction", sample=SAMPLES),
-        sam=expand(f"{OUTDIR}/star/{{sample}}/{{sample}}.Aligned.out.sam", sample=SAMPLES),
-        bwa=expand(f"{OUTDIR}/star/{{sample}}/{{sample}}.bwa.sam", sample=SAMPLES)
+        bam=expand(f"{OUTDIR}/star/{{sample}}/{{sample}}.Aligned.sortedByCoord.out.bam", sample=SAMPLES),
+        bwa=expand(f"{OUTDIR}/star/{{sample}}/{{sample}}.bwa.bam", sample=SAMPLES)
     output:
         tsv=f"{OUTDIR}/ciri3/samples.star.tsv"
     run:
         os.makedirs(os.path.dirname(output.tsv), exist_ok=True)
         with open(output.tsv, "w", encoding="utf-8") as fout:
-            for chimeric, sam, bwa in zip(input.chimeric, input.sam, input.bwa):
+            for chimeric, bam, bwa in zip(input.chimeric, input.bam, input.bwa):
                 # CIRI3 STAR mode expects one column:
-                # Chimeric.out.junction,Aligned.out.sam,bwa.sam
-                fout.write(f"{chimeric},{sam},{bwa}\n")
+                # Chimeric.out.junction,Aligned.sortedByCoord.out.bam,bwa.bam
+                fout.write(f"{chimeric},{bam},{bwa}\n")
 
 
 rule ciri3_samples_tsv_unique:

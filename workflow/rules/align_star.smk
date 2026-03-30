@@ -12,7 +12,7 @@ rule star_align_ciri3:
         r2=f"{OUTDIR}/tmp/fastp/{{sample}}_R2.fastq.gz"
     output:
         chimeric=f"{OUTDIR}/star/{{sample}}/{{sample}}.Chimeric.out.junction",
-        bwa_sam=f"{OUTDIR}/star/{{sample}}/{{sample}}.bwa.bam",
+        bwa_bam=f"{OUTDIR}/star/{{sample}}/{{sample}}.bwa.bam",
         bam=f"{OUTDIR}/star/{{sample}}/{{sample}}.Aligned.sortedByCoord.out.bam",
         unmapped_r1=temp(f"{OUTDIR}/star/{{sample}}/{{sample}}.Unmapped.out.mate1"),
         unmapped_r2=temp(f"{OUTDIR}/star/{{sample}}/{{sample}}.Unmapped.out.mate2"),
@@ -38,7 +38,7 @@ rule star_align_ciri3:
           --readFilesIn {input.r1} {input.r2} \
           --readFilesCommand zcat \
           --outFileNamePrefix {OUTDIR}/star/{wildcards.sample}/{wildcards.sample}. \
-          --outSAMtype BAM \
+          --outSAMtype BAM SortedByCoordinate \
           --outReadsUnmapped Fastx \
           --outSJfilterOverhangMin 15 12 12 12 \
           --alignSJoverhangMin 15 \
@@ -53,5 +53,7 @@ rule star_align_ciri3:
           > {log} 2>&1
 
         # STAR mode of CIRI3 requires BWA remapping for unmapped reads.
-        bwa mem -T 19 -t {threads} {params.fasta} {output.unmapped_r1} {output.unmapped_r2} > {output.bwa_bam} 2>> {log}
+        bwa mem -T 19 -t {threads} {params.fasta} {output.unmapped_r1} {output.unmapped_r2} \
+          | samtools view -@ {threads} -b - \
+          > {output.bwa_bam} 2>> {log}
         """
