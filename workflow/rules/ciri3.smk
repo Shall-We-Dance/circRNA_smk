@@ -1,8 +1,6 @@
 # workflow/rules/ciri3.smk
-import os
 
 OUTDIR = config["output"]["dir"]
-SAMPLES = list(config["samples"].keys())
 
 
 rule star_bam_index_for_ciri3:
@@ -20,71 +18,44 @@ rule star_bam_index_for_ciri3:
         """
 
 
-rule ciri3_samples_tsv_star:
-    input:
-        chimeric=expand(f"{OUTDIR}/star/{{sample}}/{{sample}}.Chimeric.out.junction", sample=SAMPLES),
-        bam=expand(f"{OUTDIR}/star/{{sample}}/{{sample}}.Aligned.sortedByCoord.out.bam", sample=SAMPLES),
-        bwa=expand(f"{OUTDIR}/star/{{sample}}/{{sample}}.bwa.bam", sample=SAMPLES)
-    output:
-        tsv=f"{OUTDIR}/ciri3/samples.star.tsv"
-    run:
-        os.makedirs(os.path.dirname(output.tsv), exist_ok=True)
-        with open(output.tsv, "w", encoding="utf-8") as fout:
-            for chimeric, bam, bwa in zip(input.chimeric, input.bam, input.bwa):
-                # CIRI3 STAR mode expects one column:
-                # Chimeric.out.junction,Aligned.sortedByCoord.out.bam,bwa.bam
-                fout.write(f"{chimeric},{bam},{bwa}\n")
-
-
-rule ciri3_samples_tsv_unique:
-    input:
-        bams=expand(f"{OUTDIR}/star/{{sample}}/{{sample}}.unique.mapq11.sorted.bam", sample=SAMPLES)
-    output:
-        tsv=f"{OUTDIR}/ciri3/samples.unique.tsv"
-    run:
-        os.makedirs(os.path.dirname(output.tsv), exist_ok=True)
-        with open(output.tsv, "w", encoding="utf-8") as fout:
-            for bam in input.bams:
-                sample = os.path.basename(bam).replace(".unique.mapq11.sorted.bam", "")
-                fout.write(f"{sample}\t{bam}\n")
-
-
 rule ciri3_detect_star:
     input:
-        tsv=f"{OUTDIR}/ciri3/samples.star.tsv",
+        chimeric=f"{OUTDIR}/star/{{sample}}/{{sample}}.Chimeric.out.junction",
+        bam=f"{OUTDIR}/star/{{sample}}/{{sample}}.Aligned.sortedByCoord.out.bam",
+        bwa=f"{OUTDIR}/star/{{sample}}/{{sample}}.bwa.unique.mapq11.sorted.bam",
         fasta=config["reference"]["fasta"],
         gtf=config["reference"]["gtf"],
-        bais=expand(f"{OUTDIR}/star/{{sample}}/{{sample}}.Aligned.sortedByCoord.out.bam.bai", sample=SAMPLES)
+        bai=f"{OUTDIR}/star/{{sample}}/{{sample}}.Aligned.sortedByCoord.out.bam.bai"
     output:
-        result=f"{OUTDIR}/ciri3/star.all_samples.ciri3",
-        bsj=f"{OUTDIR}/ciri3/star.all_samples.ciri3.BSJ_Matrix",
-        fsj=f"{OUTDIR}/ciri3/star.all_samples.ciri3.FSJ_Matrix"
+        result=f"{OUTDIR}/ciri3/star/{{sample}}.ciri3",
+        bsj=f"{OUTDIR}/ciri3/star/{{sample}}.ciri3.BSJ_Matrix",
+        fsj=f"{OUTDIR}/ciri3/star/{{sample}}.ciri3.FSJ_Matrix"
     log:
-        "logs/ciri3.detect.star.log"
+        "logs/ciri3/{sample}.detect.star.log"
     conda:
         "envs/ciri3.yaml"
     params:
         jar=config["ciri3"]["jar"],
-        outprefix=f"{OUTDIR}/ciri3/star.all_samples.ciri3",
         Ma=int(config.get("ciri3", {}).get("Ma", 1)),
         W=int(config.get("ciri3", {}).get("W", 1))
     shell:
         r"""
         set -euo pipefail
         mkdir -p $(dirname {output.result}) $(dirname {log})
+        input_list="{input.chimeric},{input.bam},{input.bwa}"
         java -jar {params.jar} \
           -A {input.gtf} \
           -Ma {params.Ma} \
           -W {params.W} \
-          -I {input.tsv} \
-          -O {params.outprefix} \
+          -I "$input_list" \
+          -O {output.result} \
           -F {input.fasta} \
           > {log} 2>&1
 
         # CIRI3 naming differs across releases; normalize to expected targets.
-        if [ ! -e {output.result} ] && [ -e {params.outprefix}.ciri3 ]; then cp {params.outprefix}.ciri3 {output.result}; fi
-        if [ ! -e {output.bsj} ] && [ -e {params.outprefix}.ciri3.BSJ_Matrix ]; then cp {params.outprefix}.ciri3.BSJ_Matrix {output.bsj}; fi
-        if [ ! -e {output.fsj} ] && [ -e {params.outprefix}.ciri3.FSJ_Matrix ]; then cp {params.outprefix}.ciri3.FSJ_Matrix {output.fsj}; fi
+        if [ ! -e {output.result} ] && [ -e {output.result}.ciri3 ]; then cp {output.result}.ciri3 {output.result}; fi
+        if [ ! -e {output.bsj} ] && [ -e {output.result}.ciri3.BSJ_Matrix ]; then cp {output.result}.ciri3.BSJ_Matrix {output.bsj}; fi
+        if [ ! -e {output.fsj} ] && [ -e {output.result}.ciri3.FSJ_Matrix ]; then cp {output.result}.ciri3.FSJ_Matrix {output.fsj}; fi
 
         test -s {output.result}
         test -s {output.bsj}
@@ -94,40 +65,40 @@ rule ciri3_detect_star:
 
 rule ciri3_detect_unique:
     input:
-        tsv=f"{OUTDIR}/ciri3/samples.unique.tsv",
+        bam=f"{OUTDIR}/star/{{sample}}/{{sample}}.unique.mapq11.sorted.bam",
         fasta=config["reference"]["fasta"],
         gtf=config["reference"]["gtf"],
-        bais=expand(f"{OUTDIR}/star/{{sample}}/{{sample}}.unique.mapq11.sorted.bam.bai", sample=SAMPLES)
+        bai=f"{OUTDIR}/star/{{sample}}/{{sample}}.unique.mapq11.sorted.bam.bai"
     output:
-        result=f"{OUTDIR}/ciri3/unique.all_samples.ciri3",
-        bsj=f"{OUTDIR}/ciri3/unique.all_samples.ciri3.BSJ_Matrix",
-        fsj=f"{OUTDIR}/ciri3/unique.all_samples.ciri3.FSJ_Matrix"
+        result=f"{OUTDIR}/ciri3/unique/{{sample}}.ciri3",
+        bsj=f"{OUTDIR}/ciri3/unique/{{sample}}.ciri3.BSJ_Matrix",
+        fsj=f"{OUTDIR}/ciri3/unique/{{sample}}.ciri3.FSJ_Matrix"
     log:
-        "logs/ciri3.detect.unique.log"
+        "logs/ciri3/{sample}.detect.unique.log"
     conda:
         "envs/ciri3.yaml"
     params:
         jar=config["ciri3"]["jar"],
-        outprefix=f"{OUTDIR}/ciri3/unique.all_samples.ciri3",
         Ma=int(config.get("ciri3", {}).get("Ma", 1)),
         W=int(config.get("ciri3", {}).get("W", 1))
     shell:
         r"""
         set -euo pipefail
         mkdir -p $(dirname {output.result}) $(dirname {log})
+        input_bam="{input.bam}"
         java -jar {params.jar} \
           -A {input.gtf} \
           -Ma {params.Ma} \
           -W {params.W} \
-          -I {input.tsv} \
-          -O {params.outprefix} \
+          -I "$input_bam" \
+          -O {output.result} \
           -F {input.fasta} \
           > {log} 2>&1
 
         # CIRI3 naming differs across releases; normalize to expected targets.
-        if [ ! -e {output.result} ] && [ -e {params.outprefix}.ciri3 ]; then cp {params.outprefix}.ciri3 {output.result}; fi
-        if [ ! -e {output.bsj} ] && [ -e {params.outprefix}.ciri3.BSJ_Matrix ]; then cp {params.outprefix}.ciri3.BSJ_Matrix {output.bsj}; fi
-        if [ ! -e {output.fsj} ] && [ -e {params.outprefix}.ciri3.FSJ_Matrix ]; then cp {params.outprefix}.ciri3.FSJ_Matrix {output.fsj}; fi
+        if [ ! -e {output.result} ] && [ -e {output.result}.ciri3 ]; then cp {output.result}.ciri3 {output.result}; fi
+        if [ ! -e {output.bsj} ] && [ -e {output.result}.ciri3.BSJ_Matrix ]; then cp {output.result}.ciri3.BSJ_Matrix {output.bsj}; fi
+        if [ ! -e {output.fsj} ] && [ -e {output.result}.ciri3.FSJ_Matrix ]; then cp {output.result}.ciri3.FSJ_Matrix {output.fsj}; fi
 
         test -s {output.result}
         test -s {output.bsj}
