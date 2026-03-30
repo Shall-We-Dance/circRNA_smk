@@ -1,6 +1,6 @@
 # Circular RNA Snakemake Analysis Pipeline
 
-This repository provides a reproducible Snakemake workflow for analyzing circular RNA from paired-end ribo-depleted RNA-seq data. The pipeline performs per-lane QC with fastp, generates MultiQC summaries, aligns reads to a reference genome with a prebuilt STAR index while retaining only uniquely mapped reads, and performs downstream circRNA detection and quantification.
+This repository provides a reproducible Snakemake workflow for analyzing circular RNA from paired-end ribo-depleted RNA-seq data. The pipeline performs per-lane QC with fastp, generates MultiQC summaries, aligns reads to a reference genome with a prebuilt STAR index, performs BWA remapping for CIRI3, and performs downstream circRNA detection and quantification.
 
 ## Overview
 
@@ -14,8 +14,9 @@ This repository provides a reproducible Snakemake workflow for analyzing circula
   - `results/qc/fastp/<sample>/fastp.html/json` (per-sample; computed after merge)
   - `results/qc/multiqc/multiqc_report.html`
 - **Alignment**
-  - `results/star/<sample>/<sample>.unique.mapq11.sorted.bam`
-  - `results/star/<sample>/<sample>.unique.mapq11.sorted.bam.bai`
+  - `results/star/<sample>/<sample>.Aligned.sortedByCoord.out.bam`
+  - `results/star/<sample>/<sample>.Aligned.sortedByCoord.out.bam.bai`
+  - `results/star/<sample>/<sample>.bwa.bam`
 - **Quantification / circRNA**
   - `results/featurecount/totalRNA.counts.txt`
   - `results/ciri3/all_samples.ciri3`
@@ -24,7 +25,7 @@ This repository provides a reproducible Snakemake workflow for analyzing circula
 ### Intermediate file handling
 To minimize storage footprint, intermediate FASTQs produced by fastp and merged FASTQs are marked as temporary and are removed automatically by Snakemake. Final deliverables include:
 - QC reports (fastp + multiqc)
-- Final BAM + BAI
+- Final STAR BAM + BAI
 - CIRI3 outputs and featureCounts count matrices
 
 ## Pipeline steps
@@ -38,11 +39,11 @@ To minimize storage footprint, intermediate FASTQs produced by fastp and merged 
 3. **fastp (per-sample “report-only” pass)**  
    The merged FASTQs are passed through fastp with trimming/filtering disabled to produce a **sample-level report** consistent with the data used for alignment. Output FASTQs from this step are also temporary.
 
-4. **STAR alignment (unique mapping)**  
-   Reads are aligned with STAR using parameters that restrict to unique alignments (e.g., `--outFilterMultimapNmax 1`).
+4. **STAR alignment**  
+   Reads are aligned with STAR and a coordinate-sorted BAM is generated directly by STAR.
 
-5. **Post-alignment MAPQ filtering**  
-   The STAR BAM is further filtered with `MAPQ > 10` (implemented as `samtools view -q 11`). The resulting BAM is coordinate-sorted and indexed.
+5. **BWA remapping for CIRI3**  
+   Unmapped STAR mates are remapped by BWA to generate the CIRI3-required BWA BAM.
 
 6. **circRNA quantification and aggregation**  
    Gene-level quantification is generated with featureCounts and circular RNA detection is run with CIRI3, producing per-sample outputs and merged summary matrices.
