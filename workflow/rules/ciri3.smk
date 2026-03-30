@@ -32,6 +32,7 @@ rule ciri3_detect_star:
         fsj=f"{OUTDIR}/ciri3/star/{{sample}}.ciri3.FSJ_Matrix"
     log:
         "logs/ciri3/{sample}.detect.star.log"
+    threads: int(config["threads"].get("samtools", 1))
     conda:
         "envs/ciri3.yaml"
     params:
@@ -42,12 +43,25 @@ rule ciri3_detect_star:
         r"""
         set -euo pipefail
         mkdir -p $(dirname {output.result}) $(dirname {log})
-        input_list="{input.chimeric},{input.bam},{input.bwa}"
+        tmpdir=$(mktemp -d "$(dirname {output.result})/ciri3_{wildcards.sample}.XXXXXX")
+        trap 'rm -rf "$tmpdir"' EXIT
+        star_sam="$tmpdir/{wildcards.sample}.Aligned.sortedByCoord.out.sam"
+        bwa_sam="$tmpdir/{wildcards.sample}.bwa.sam"
+        samples_tsv="$tmpdir/samples_{wildcards.sample}.tsv"
+
+        samtools view -@ {threads} -h -o "$star_sam" {input.bam}
+        samtools view -@ {threads} -h -o "$bwa_sam" {input.bwa}
+
+        chimeric_abs=$(realpath "{input.chimeric}")
+        star_sam_abs=$(realpath "$star_sam")
+        bwa_sam_abs=$(realpath "$bwa_sam")
+        printf "%s,%s,%s\n" "$chimeric_abs" "$star_sam_abs" "$bwa_sam_abs" > "$samples_tsv"
+
         java -jar {params.jar} \
           -A {input.gtf} \
           -Ma {params.Ma} \
           -W {params.W} \
-          -I "$input_list" \
+          -I "$samples_tsv" \
           -O {output.result} \
           -F {input.fasta} \
           > {log} 2>&1
@@ -78,6 +92,7 @@ rule ciri3_detect_unique:
         fsj=f"{OUTDIR}/ciri3/unique/{{sample}}.ciri3.FSJ_Matrix"
     log:
         "logs/ciri3/{sample}.detect.unique.log"
+    threads: int(config["threads"].get("samtools", 1))
     conda:
         "envs/ciri3.yaml"
     params:
@@ -88,12 +103,25 @@ rule ciri3_detect_unique:
         r"""
         set -euo pipefail
         mkdir -p $(dirname {output.result}) $(dirname {log})
-        input_list="{input.chimeric},{input.bam},{input.bwa}"
+        tmpdir=$(mktemp -d "$(dirname {output.result})/ciri3_{wildcards.sample}.XXXXXX")
+        trap 'rm -rf "$tmpdir"' EXIT
+        star_sam="$tmpdir/{wildcards.sample}.unique.mapq11.sorted.sam"
+        bwa_sam="$tmpdir/{wildcards.sample}.bwa.unique.mapq11.sorted.sam"
+        samples_tsv="$tmpdir/samples_{wildcards.sample}.tsv"
+
+        samtools view -@ {threads} -h -o "$star_sam" {input.bam}
+        samtools view -@ {threads} -h -o "$bwa_sam" {input.bwa}
+
+        chimeric_abs=$(realpath "{input.chimeric}")
+        star_sam_abs=$(realpath "$star_sam")
+        bwa_sam_abs=$(realpath "$bwa_sam")
+        printf "%s,%s,%s\n" "$chimeric_abs" "$star_sam_abs" "$bwa_sam_abs" > "$samples_tsv"
+
         java -jar {params.jar} \
           -A {input.gtf} \
           -Ma {params.Ma} \
           -W {params.W} \
-          -I "$input_list" \
+          -I "$samples_tsv" \
           -O {output.result} \
           -F {input.fasta} \
           > {log} 2>&1
