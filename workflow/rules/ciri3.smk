@@ -22,7 +22,7 @@ rule ciri3_detect_star:
     input:
         chimeric=f"{OUTDIR}/star/{{sample}}/{{sample}}.Chimeric.out.junction",
         bam=f"{OUTDIR}/star/{{sample}}/{{sample}}.Aligned.sortedByCoord.out.bam",
-        bwa=f"{OUTDIR}/star/{{sample}}/{{sample}}.bwa.unique.mapq11.sorted.bam",
+        bwa=f"{OUTDIR}/star/{{sample}}/{{sample}}.bwa.bam",
         fasta=config["reference"]["fasta"],
         gtf=config["reference"]["gtf"],
         bai=f"{OUTDIR}/star/{{sample}}/{{sample}}.Aligned.sortedByCoord.out.bam.bai"
@@ -65,10 +65,13 @@ rule ciri3_detect_star:
 
 rule ciri3_detect_unique:
     input:
+        chimeric=f"{OUTDIR}/star/{{sample}}/{{sample}}.Chimeric.out.junction",
         bam=f"{OUTDIR}/star/{{sample}}/{{sample}}.unique.mapq11.sorted.bam",
+        bwa=f"{OUTDIR}/star/{{sample}}/{{sample}}.bwa.unique.mapq11.sorted.bam",
         fasta=config["reference"]["fasta"],
         gtf=config["reference"]["gtf"],
-        bai=f"{OUTDIR}/star/{{sample}}/{{sample}}.unique.mapq11.sorted.bam.bai"
+        bai=f"{OUTDIR}/star/{{sample}}/{{sample}}.unique.mapq11.sorted.bam.bai",
+        bwa_bai=f"{OUTDIR}/star/{{sample}}/{{sample}}.bwa.unique.mapq11.sorted.bam.bai"
     output:
         result=f"{OUTDIR}/ciri3/unique/{{sample}}.ciri3",
         bsj=f"{OUTDIR}/ciri3/unique/{{sample}}.ciri3.BSJ_Matrix",
@@ -85,12 +88,12 @@ rule ciri3_detect_unique:
         r"""
         set -euo pipefail
         mkdir -p $(dirname {output.result}) $(dirname {log})
-        input_bam="{input.bam}"
+        input_list="{input.chimeric},{input.bam},{input.bwa}"
         java -jar {params.jar} \
           -A {input.gtf} \
           -Ma {params.Ma} \
           -W {params.W} \
-          -I "$input_bam" \
+          -I "$input_list" \
           -O {output.result} \
           -F {input.fasta} \
           > {log} 2>&1
