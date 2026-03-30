@@ -1,6 +1,4 @@
 # workflow/rules/align_star.smk
-import os
-
 OUTDIR = config["output"]["dir"]
 
 
@@ -12,7 +10,6 @@ rule star_align_ciri3:
         r2=f"{OUTDIR}/tmp/fastp/{{sample}}_R2.fastq.gz"
     output:
         chimeric=f"{OUTDIR}/star/{{sample}}/{{sample}}.Chimeric.out.junction",
-        bwa_bam=f"{OUTDIR}/star/{{sample}}/{{sample}}.bwa.bam",
         bam=f"{OUTDIR}/star/{{sample}}/{{sample}}.Aligned.sortedByCoord.out.bam",
         unmapped_r1=temp(f"{OUTDIR}/star/{{sample}}/{{sample}}.Unmapped.out.mate1"),
         unmapped_r2=temp(f"{OUTDIR}/star/{{sample}}/{{sample}}.Unmapped.out.mate2"),
@@ -25,12 +22,11 @@ rule star_align_ciri3:
     conda:
         "envs/star.yaml"
     params:
-        index=config["reference"]["star_index"],
-        fasta=config["reference"]["fasta"]
+        index=config["reference"]["star_index"]
     shell:
         r"""
         set -euo pipefail
-        mkdir -p $(dirname {output.bam}) $(dirname {output.log_final}) $(dirname {log})
+        mkdir -p $(dirname {output.bam}) $(dirname {output.log_final}) $(dirname {output.log_final_qc}) $(dirname {log})
 
         STAR \
           --runThreadN {threads} \
@@ -52,8 +48,39 @@ rule star_align_ciri3:
           --chimJunctionOverhangMin 15 \
           > {log} 2>&1
 
+        cp {output.log_final} {output.log_final_qc}
+        """
+
+
+rule bwa_remap_ciri3:
+    input:
+        bam=f"{OUTDIR}/star/{{sample}}/{{sample}}.Aligned.sortedByCoord.out.bam",
+        unmapped_r1=f"{OUTDIR}/star/{{sample}}/{{sample}}.Unmapped.out.mate1",
+        unmapped_r2=f"{OUTDIR}/star/{{sample}}/{{sample}}.Unmapped.out.mate2"
+    output:
+        bwa_bam=f"{OUTDIR}/star/{{sample}}/{{sample}}.bwa.bam"
+    log:
+        f"logs/star/{{sample}}.bwa.log"
+    threads: int(config["threads"]["star"])
+    conda:
+        "envs/star.yaml"
+    params:
+        fasta=config["reference"]["fasta"]
+    shell:
+        r"""
+        set -euo pipefail
+        mkdir -p $(dirname {output.bwa_bam}) $(dirname {log})
+
         # STAR mode of CIRI3 requires BWA remapping for unmapped reads.
-        bwa mem -T 19 -t {threads} {params.fasta} {output.unmapped_r1} {output.unmapped_r2} \
-          | samtools view -@ {threads} -b - \
-          > {output.bwa_bam} 2>> {log}
+        # If both unmapped FASTQ files are empty, emit an empty BAM with the
+        # same header as STAR's coordinate-sorted BAM.
+        if [[ ! -s {input.unmapped_r1} && ! -s {input.unmapped_r2} ]]; then
+          samtools view -H {input.bam} \
+            | samtools view -@ {threads} -b - \
+            > {output.bwa_bam} 2>> {log}
+        else
+          bwa mem -T 19 -t {threads} {params.fasta} {input.unmapped_r1} {input.unmapped_r2} 2>> {log} \
+            | samtools view -@ {threads} -b - \
+            > {output.bwa_bam} 2>> {log}
+        fi
         """
