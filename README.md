@@ -1,6 +1,6 @@
 # Circular RNA Snakemake Analysis Pipeline
 
-This repository provides a reproducible Snakemake workflow for analyzing circular RNA from paired-end ribo-depleted RNA-seq data. The pipeline performs per-lane QC with fastp, generates MultiQC summaries, aligns reads to a reference genome with a prebuilt STAR index, performs BWA remapping for CIRI3, and performs downstream circRNA detection and quantification.
+This repository provides a reproducible Snakemake workflow for analyzing circular RNA from paired-end ribo-depleted RNA-seq data. The pipeline merges lane-level FASTQs to sample-level pairs, performs sample-level QC with fastp, generates MultiQC summaries, aligns reads to a reference genome with a prebuilt STAR index, performs BWA remapping for CIRI3, and performs downstream circRNA detection and quantification.
 
 ## Overview
 
@@ -10,8 +10,7 @@ This repository provides a reproducible Snakemake workflow for analyzing circula
 
 ### Outputs (per sample)
 - **QC**
-  - `results/qc/fastp/<sample>/unit<k>.html/json` (per-lane)
-  - `results/qc/fastp/<sample>/fastp.html/json` (per-sample; computed after merge)
+  - `results/qc/fastp/<sample>/fastp.html/json` (per-sample)
   - `results/qc/multiqc/multiqc_report.html`
 - **Alignment**
   - `results/star/<sample>/<sample>.Aligned.sortedByCoord.out.bam`
@@ -30,22 +29,19 @@ To minimize storage footprint, intermediate FASTQs produced by fastp and merged 
 
 ## Pipeline steps
 
-1. **fastp QC (per-lane)**  
-   Each input FASTQ pair is processed by fastp. Per-lane HTML/JSON reports are kept; cleaned FASTQs are temporary.
+1. **Merge FASTQs (per-sample)**  
+   Raw R1 files are concatenated into a single sample-level R1 file, and raw R2 files are concatenated into a single sample-level R2 file. (For gzip-compressed FASTQ files, stream concatenation with `cat` is valid.)
 
-2. **Merge cleaned FASTQs**  
-   Cleaned R1 files are concatenated to a single sample-level R1; cleaned R2 files are concatenated to a single sample-level R2 (gzip stream concatenation is valid).
+2. **fastp QC (per-sample)**  
+   The merged FASTQs are processed by fastp once per sample. This produces sample-level HTML/JSON reports that are consistent with the reads used for alignment. The cleaned FASTQs from this step are temporary.
 
-3. **fastp (per-sample “report-only” pass)**  
-   The merged FASTQs are passed through fastp with trimming/filtering disabled to produce a **sample-level report** consistent with the data used for alignment. Output FASTQs from this step are also temporary.
-
-4. **STAR alignment**  
+3. **STAR alignment**  
    Reads are aligned with STAR and a coordinate-sorted BAM is generated directly by STAR.
 
-5. **BWA remapping for CIRI3**  
+4. **BWA remapping for CIRI3**  
    Unmapped STAR mates are remapped by BWA to generate the CIRI3-required BWA BAM.
 
-6. **circRNA quantification and aggregation**  
+5. **circRNA quantification and aggregation**  
    Gene-level quantification is generated with featureCounts and circular RNA detection is run with CIRI3, producing per-sample outputs and merged summary matrices.
 
 ## Requirements
