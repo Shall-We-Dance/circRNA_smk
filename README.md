@@ -125,4 +125,4 @@ snakemake -s workflow/Snakefile -n
 
 ## Contact
 
-For questions or extensions (e.g., track hubs, fragment-level scaling, additional QC metrics), please open an issue or contact the pipeline maintainer.
+For questions, please open an issue or contact the pipeline maintainer.
