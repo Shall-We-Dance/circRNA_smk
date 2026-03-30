@@ -1,5 +1,7 @@
 # workflow/rules/align_star.smk
 OUTDIR = config["output"]["dir"]
+BWA_INDEX_EXTS = ("amb", "ann", "bwt", "pac", "sa")
+BWA_INDEXED_FASTA = config["reference"]["bwa_indexed_fasta"]
 
 
 
@@ -56,7 +58,8 @@ rule bwa_remap_ciri3:
     input:
         bam=f"{OUTDIR}/star/{{sample}}/{{sample}}.Aligned.sortedByCoord.out.bam",
         unmapped_r1=f"{OUTDIR}/star/{{sample}}/{{sample}}.Unmapped.out.mate1",
-        unmapped_r2=f"{OUTDIR}/star/{{sample}}/{{sample}}.Unmapped.out.mate2"
+        unmapped_r2=f"{OUTDIR}/star/{{sample}}/{{sample}}.Unmapped.out.mate2",
+        bwa_idx=lambda wildcards: [f"{BWA_INDEXED_FASTA}.{ext}" for ext in BWA_INDEX_EXTS]
     output:
         bwa_bam=f"{OUTDIR}/star/{{sample}}/{{sample}}.bwa.bam"
     log:
@@ -65,7 +68,7 @@ rule bwa_remap_ciri3:
     conda:
         "envs/star.yaml"
     params:
-        fasta=config["reference"]["fasta"]
+        bwa_index=BWA_INDEXED_FASTA
     shell:
         r"""
         set -euo pipefail
@@ -79,7 +82,7 @@ rule bwa_remap_ciri3:
             | samtools view -@ {threads} -b - \
             > {output.bwa_bam} 2>> {log}
         else
-          bwa mem -T 19 -t {threads} {params.fasta} {input.unmapped_r1} {input.unmapped_r2} 2>> {log} \
+          bwa mem -T 19 -t {threads} {params.bwa_index} {input.unmapped_r1} {input.unmapped_r2} 2>> {log} \
             | samtools view -@ {threads} -b - \
             > {output.bwa_bam} 2>> {log}
         fi

@@ -83,6 +83,7 @@ Key fields:
 
 * `reference.star_index`: prebuilt STAR genome index directory (must already contain index files such as `SA`)
 * `reference.fasta`: reference FASTA (used by downstream steps such as CIRI3 support files)
+* `reference.bwa_indexed_fasta`: BWA-indexed FASTA path (BWA sidecar files must already exist with this path as prefix)
 * `reference.gtf`: reference annotation GTF
 * `samples`: mapping of sample name to lists of FASTQs for R1 and R2
 
@@ -92,6 +93,7 @@ Example:
 reference:
   star_index: "/path/to/STAR/index"
   fasta: "/path/to/genome.fa"
+  bwa_indexed_fasta: "/path/to/genome.fa"
   gtf: "/path/to/genes.gtf"
 
 samples:
@@ -108,6 +110,9 @@ Notes:
 
 * The workflow assumes paired-end reads and requires both R1 and R2 lists to be the same length per sample.
 * STAR genome index construction is **not** performed in this workflow; build the STAR index in advance and point `reference.star_index` to that directory.
+* BWA index construction is **not** performed in this workflow; provide prebuilt index files for `reference.bwa_indexed_fasta`.
+  Example:
+  `bwa index /path/to/genome.fa`
 
 ## Running the workflow
 
