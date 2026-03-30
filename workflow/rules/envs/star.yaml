@@ -2,3 +2,5 @@ name: star
 channels: [conda-forge, bioconda]
 dependencies:
   - star
+  - samtools
+  - bwa
