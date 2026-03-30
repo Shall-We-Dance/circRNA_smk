@@ -7,7 +7,6 @@ OUTDIR = config["output"]["dir"]
 
 include: "rules/qc_fastp.smk"
 include: "rules/align_star.smk"
-include: "rules/bam_unique.smk"
 include: "rules/featurecount.smk"
 include: "rules/ciri3.smk"
 
@@ -17,22 +16,15 @@ rule all:
         expand(f"{OUTDIR}/qc/fastp/{{sample}}/fastp.html", sample=SAMPLES),
         expand(f"{OUTDIR}/qc/fastp/{{sample}}/fastp.json", sample=SAMPLES),
 
-        # STAR outputs and MAPQ-filtered BAM
+        # STAR outputs
         expand(f"{OUTDIR}/star/{{sample}}/{{sample}}.Log.final.out", sample=SAMPLES),
         expand(f"{OUTDIR}/star/{{sample}}/{{sample}}.SJ.out.tab", sample=SAMPLES),
-        expand(f"{OUTDIR}/star/{{sample}}/{{sample}}.unique.mapq11.sorted.bam", sample=SAMPLES),
-        expand(f"{OUTDIR}/star/{{sample}}/{{sample}}.unique.mapq11.sorted.bam.bai", sample=SAMPLES),
-        expand(f"{OUTDIR}/star/{{sample}}/{{sample}}.bwa.unique.mapq11.sorted.bam", sample=SAMPLES),
-        expand(f"{OUTDIR}/star/{{sample}}/{{sample}}.bwa.unique.mapq11.sorted.bam.bai", sample=SAMPLES),
 
         # featureCounts + CIRI3
         f"{OUTDIR}/featurecount/totalRNA.counts.txt",
         expand(f"{OUTDIR}/ciri3/star/{{sample}}.ciri3", sample=SAMPLES),
         expand(f"{OUTDIR}/ciri3/star/{{sample}}.ciri3.BSJ_Matrix", sample=SAMPLES),
         expand(f"{OUTDIR}/ciri3/star/{{sample}}.ciri3.FSJ_Matrix", sample=SAMPLES),
-        expand(f"{OUTDIR}/ciri3/unique/{{sample}}.ciri3", sample=SAMPLES),
-        expand(f"{OUTDIR}/ciri3/unique/{{sample}}.ciri3.BSJ_Matrix", sample=SAMPLES),
-        expand(f"{OUTDIR}/ciri3/unique/{{sample}}.ciri3.FSJ_Matrix", sample=SAMPLES),
 
         # summary QC
         f"{OUTDIR}/qc/multiqc/multiqc_report.html"

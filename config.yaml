@@ -35,10 +35,6 @@ fastp:
   dedup_adapter:
     dedup: true
 
-
-filtering:
-  min_mapq: 11
-
 ciri3:
   # local CIRI3 jar path
   jar: "/path/to/CIRI3_v1.0.1.jar"
