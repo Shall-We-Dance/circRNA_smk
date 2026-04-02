@@ -4,6 +4,10 @@ BWA_INDEX_EXTS = ("amb", "ann", "bwt", "pac", "sa")
 BWA_INDEXED_FASTA = config["reference"]["bwa_indexed_fasta"]
 
 
+def maybe_temp(path):
+    return path if KEEP_BAM else temp(path)
+
+
 
 rule star_align_ciri3:
     input:
@@ -12,7 +16,7 @@ rule star_align_ciri3:
         r2=f"{OUTDIR}/tmp/fastp/{{sample}}_R2.fastq.gz"
     output:
         chimeric=f"{OUTDIR}/star/{{sample}}/{{sample}}.Chimeric.out.junction",
-        bam=f"{OUTDIR}/star/{{sample}}/{{sample}}.Aligned.sortedByCoord.out.bam",
+        bam=maybe_temp(f"{OUTDIR}/star/{{sample}}/{{sample}}.Aligned.sortedByCoord.out.bam"),
         unmapped_r1=temp(f"{OUTDIR}/star/{{sample}}/{{sample}}.Unmapped.out.mate1"),
         unmapped_r2=temp(f"{OUTDIR}/star/{{sample}}/{{sample}}.Unmapped.out.mate2"),
         log_final=f"{OUTDIR}/star/{{sample}}/{{sample}}.Log.final.out",
@@ -61,7 +65,7 @@ rule bwa_remap_ciri3:
         unmapped_r2=f"{OUTDIR}/star/{{sample}}/{{sample}}.Unmapped.out.mate2",
         bwa_idx=lambda wildcards: [f"{BWA_INDEXED_FASTA}.{ext}" for ext in BWA_INDEX_EXTS]
     output:
-        bwa_bam=f"{OUTDIR}/star/{{sample}}/{{sample}}.bwa.bam"
+        bwa_bam=maybe_temp(f"{OUTDIR}/star/{{sample}}/{{sample}}.bwa.bam")
     log:
         f"logs/star/{{sample}}.bwa.log"
     threads: int(config["threads"]["star"])

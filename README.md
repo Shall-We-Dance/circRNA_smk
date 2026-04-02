@@ -8,24 +8,27 @@ This repository provides a reproducible Snakemake workflow for analyzing circula
 - Paired-end raw FASTQ files (`*.fastq.gz`) for each sample.
 - Multiple FASTQ pairs (lanes / technical replicates) may be assigned to the same sample.
 
-### Outputs (per sample)
+### Outputs
 - **QC**
   - `results/qc/fastp/<sample>/fastp.html/json` (per-sample)
   - `results/qc/multiqc/multiqc_report.html`
 - **Alignment**
-  - `results/star/<sample>/<sample>.Aligned.sortedByCoord.out.bam`
-  - `results/star/<sample>/<sample>.Aligned.sortedByCoord.out.bam.bai`
-  - `results/star/<sample>/<sample>.bwa.bam`
+  - `results/star/<sample>/<sample>.Aligned.sortedByCoord.out.bam` (optional, controlled by `output.keep_bam`)
+  - `results/star/<sample>/<sample>.Aligned.sortedByCoord.out.bam.bai` (optional, controlled by `output.keep_bam`)
+  - `results/star/<sample>/<sample>.bwa.bam` (optional, controlled by `output.keep_bam`)
 - **Quantification / circRNA**
   - `results/featurecount/totalRNA.counts.txt`
+  - `results/ciri3/star/<sample>.ciri3`
+  - `results/ciri3/star/<sample>.ciri3.BSJ_Matrix`
+  - `results/ciri3/star/<sample>.ciri3.FSJ_Matrix`
   - `results/ciri3/all_samples.ciri3`
   - `results/ciri3/all_samples.ciri3.BSJ_Matrix`
   - `results/ciri3/all_samples.ciri3.FSJ_Matrix`
 ### Intermediate file handling
-To minimize storage footprint, intermediate FASTQs produced by fastp and merged FASTQs are marked as temporary and are removed automatically by Snakemake. Final deliverables include:
+To minimize storage footprint, intermediate FASTQs produced by fastp and merged FASTQs are marked as temporary and are removed automatically by Snakemake. In addition, STAR/BWA BAM files are temporary by default (`output.keep_bam: false`) and will be removed after downstream rules finish. Set `output.keep_bam: true` if you want to retain BAM/BAI files. Final deliverables include:
 - QC reports (fastp + multiqc)
-- Final STAR BAM + BAI
-- CIRI3 outputs and featureCounts count matrices
+- CIRI3 per-sample outputs and all-sample merged outputs
+- featureCounts count matrices
 
 ## Pipeline steps
 
@@ -42,7 +45,7 @@ To minimize storage footprint, intermediate FASTQs produced by fastp and merged 
    Unmapped STAR mates are remapped by BWA to generate the CIRI3-required BWA BAM.
 
 5. **circRNA quantification and aggregation**  
-   Gene-level quantification is generated with featureCounts and circular RNA detection is run with CIRI3, producing per-sample outputs and merged summary matrices.
+   Gene-level quantification is generated with featureCounts and circular RNA detection is run with CIRI3. The workflow writes per-sample CIRI3 outputs first, then merges all samples into `all_samples.ciri3`, `all_samples.ciri3.BSJ_Matrix`, and `all_samples.ciri3.FSJ_Matrix` with sample names as matrix column names.
 
 ## Requirements
 
@@ -83,6 +86,7 @@ Key fields:
 * `reference.bwa_indexed_fasta`: BWA-indexed FASTA path (BWA sidecar files must already exist with this path as prefix)
 * `reference.gtf`: reference annotation GTF
 * `samples`: mapping of sample name to lists of FASTQs for R1 and R2
+* `output.keep_bam`: keep STAR/BWA BAM files (`false` by default to save disk)
 
 Example:
 

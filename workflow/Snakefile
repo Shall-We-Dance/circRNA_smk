@@ -4,6 +4,7 @@ configfile: "config.yaml"
 
 SAMPLES = list(config["samples"].keys())
 OUTDIR = config["output"]["dir"]
+KEEP_BAM = bool(config.get("output", {}).get("keep_bam", False))
 
 include: "rules/qc_fastp.smk"
 include: "rules/align_star.smk"
@@ -25,6 +26,9 @@ rule all:
         expand(f"{OUTDIR}/ciri3/star/{{sample}}.ciri3", sample=SAMPLES),
         expand(f"{OUTDIR}/ciri3/star/{{sample}}.ciri3.BSJ_Matrix", sample=SAMPLES),
         expand(f"{OUTDIR}/ciri3/star/{{sample}}.ciri3.FSJ_Matrix", sample=SAMPLES),
+        f"{OUTDIR}/ciri3/all_samples.ciri3",
+        f"{OUTDIR}/ciri3/all_samples.ciri3.BSJ_Matrix",
+        f"{OUTDIR}/ciri3/all_samples.ciri3.FSJ_Matrix",
 
         # summary QC
         f"{OUTDIR}/qc/multiqc/multiqc_report.html"

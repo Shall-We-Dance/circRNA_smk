@@ -44,3 +44,5 @@ ciri3:
 
 output:
   dir: "results"
+  # keep STAR/BWA BAM files after pipeline finishes
+  keep_bam: false
