@@ -1,13 +1,18 @@
 # workflow/rules/ciri3.smk
 
 OUTDIR = config["output"]["dir"]
+SAMPLES = list(config["samples"].keys())
+
+
+def maybe_temp(path):
+    return path if KEEP_BAM else temp(path)
 
 
 rule star_bam_index_for_ciri3:
     input:
         bam=f"{OUTDIR}/star/{{sample}}/{{sample}}.Aligned.sortedByCoord.out.bam"
     output:
-        bai=f"{OUTDIR}/star/{{sample}}/{{sample}}.Aligned.sortedByCoord.out.bam.bai"
+        bai=maybe_temp(f"{OUTDIR}/star/{{sample}}/{{sample}}.Aligned.sortedByCoord.out.bam.bai")
     threads: int(config["threads"]["samtools"])
     conda:
         "envs/samtools.yaml"
@@ -76,3 +81,17 @@ rule ciri3_detect_star:
         test -s {output.fsj}
         """
 
+
+rule merge_ciri3_outputs:
+    input:
+        ciri3=expand(f"{OUTDIR}/ciri3/star/{{sample}}.ciri3", sample=SAMPLES),
+        bsj=expand(f"{OUTDIR}/ciri3/star/{{sample}}.ciri3.BSJ_Matrix", sample=SAMPLES),
+        fsj=expand(f"{OUTDIR}/ciri3/star/{{sample}}.ciri3.FSJ_Matrix", sample=SAMPLES)
+    output:
+        ciri3=f"{OUTDIR}/ciri3/all_samples.ciri3",
+        bsj=f"{OUTDIR}/ciri3/all_samples.ciri3.BSJ_Matrix",
+        fsj=f"{OUTDIR}/ciri3/all_samples.ciri3.FSJ_Matrix"
+    params:
+        samples=SAMPLES
+    script:
+        "scripts/merge_ciri3_outputs.py"
