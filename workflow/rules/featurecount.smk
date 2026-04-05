@@ -14,15 +14,10 @@ rule featurecounts_totalrna:
     conda:
         "envs/ciri3.yaml"
     params:
-        gtf=config["reference"]["gtf"],
-        sample_names=",".join(SAMPLES)
+        gtf=config["reference"]["gtf"]
     shell:
         r"""
         set -euo pipefail
         mkdir -p $(dirname {output.counts}) $(dirname {log})
         featureCounts -T {threads} -p -a {params.gtf} -o {output.counts} {input.bams} > {log} 2>&1
-
-        python workflow/scripts/rename_featurecounts_header.py \
-            --counts {output.counts} \
-            --sample-names {params.sample_names}
         """
