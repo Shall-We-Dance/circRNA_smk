@@ -22,26 +22,7 @@ rule featurecounts_totalrna:
         mkdir -p $(dirname {output.counts}) $(dirname {log})
         featureCounts -T {threads} -p -a {params.gtf} -o {output.counts} {input.bams} > {log} 2>&1
 
-        python - <<'PY'
-from pathlib import Path
-
-counts_path = Path("{output.counts}")
-sample_names = "{params.sample_names}".split(",")
-
-lines = counts_path.read_text().splitlines()
-if len(lines) < 2:
-    raise ValueError("featureCounts output is malformed: %s" % counts_path)
-
-header = lines[1].split("\t")
-fixed_columns = 6
-if len(header) - fixed_columns != len(sample_names):
-    raise ValueError(
-        "featureCounts sample columns count does not match configured samples: "
-        "%s vs %s" % (len(header) - fixed_columns, len(sample_names))
-    )
-
-header[fixed_columns:] = sample_names
-lines[1] = "\t".join(header)
-counts_path.write_text("\n".join(lines) + "\n")
-PY
+        python workflow/scripts/rename_featurecounts_header.py \
+            --counts {output.counts} \
+            --sample-names {params.sample_names}
         """
