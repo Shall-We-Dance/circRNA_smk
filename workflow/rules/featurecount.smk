@@ -30,14 +30,14 @@ sample_names = "{params.sample_names}".split(",")
 
 lines = counts_path.read_text().splitlines()
 if len(lines) < 2:
-    raise ValueError("featureCounts output is malformed: {}".format(counts_path))
+    raise ValueError("featureCounts output is malformed: %s" % counts_path)
 
 header = lines[1].split("\t")
 fixed_columns = 6
 if len(header) - fixed_columns != len(sample_names):
     raise ValueError(
         "featureCounts sample columns count does not match configured samples: "
-        "{} vs {}".format(len(header) - fixed_columns, len(sample_names))
+        "%s vs %s" % (len(header) - fixed_columns, len(sample_names))
     )
 
 header[fixed_columns:] = sample_names
