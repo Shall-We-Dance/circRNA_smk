@@ -56,10 +56,34 @@ rule fastp_sample_level:
         """
 
 
+rule seqkit_stats_sample_level:
+    input:
+        raw_r1=f"{OUTDIR}/tmp/merged_raw/{{sample}}_R1.fastq.gz",
+        raw_r2=f"{OUTDIR}/tmp/merged_raw/{{sample}}_R2.fastq.gz",
+        clean_r1=f"{OUTDIR}/tmp/fastp/{{sample}}_R1.fastq.gz",
+        clean_r2=f"{OUTDIR}/tmp/fastp/{{sample}}_R2.fastq.gz"
+    output:
+        raw_stats=f"{OUTDIR}/qc/seqkit/{{sample}}/raw.seqkit.stats.tsv",
+        clean_stats=f"{OUTDIR}/qc/seqkit/{{sample}}/clean.seqkit.stats.tsv"
+    log:
+        f"logs/seqkit/{{sample}}.log"
+    conda:
+        "envs/qc.yaml"
+    shell:
+        r"""
+        set -euo pipefail
+        mkdir -p $(dirname {output.raw_stats}) $(dirname {log})
+
+        seqkit stats -a -T {input.raw_r1} {input.raw_r2} > {output.raw_stats} 2> {log}
+        seqkit stats -a -T {input.clean_r1} {input.clean_r2} > {output.clean_stats} 2>> {log}
+        """
+
 rule multiqc:
     input:
         expand(f"{OUTDIR}/qc/fastp/{{sample}}/fastp.html", sample=list(config["samples"].keys())),
-        expand(f"{OUTDIR}/qc/star/{{sample}}/{{sample}}.Log.final.out", sample=list(config["samples"].keys()))
+        expand(f"{OUTDIR}/qc/star/{{sample}}/{{sample}}.Log.final.out", sample=list(config["samples"].keys())),
+        expand(f"{OUTDIR}/qc/seqkit/{{sample}}/raw.seqkit.stats.tsv", sample=list(config["samples"].keys())),
+        expand(f"{OUTDIR}/qc/seqkit/{{sample}}/clean.seqkit.stats.tsv", sample=list(config["samples"].keys()))
     output:
         html=f"{OUTDIR}/qc/multiqc/multiqc_report.html"
     log:

@@ -4,3 +4,4 @@ dependencies:
   - fastp
   - deeptools
   - samtools
+  - seqkit
