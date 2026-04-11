@@ -67,6 +67,7 @@ rule seqkit_stats_sample_level:
         clean_stats=f"{OUTDIR}/qc/seqkit/{{sample}}/clean.seqkit.stats.tsv"
     log:
         f"logs/seqkit/{{sample}}.log"
+    threads: int(config["threads"].get("seqkit", 1))
     conda:
         "envs/qc.yaml"
     shell:
@@ -74,8 +75,8 @@ rule seqkit_stats_sample_level:
         set -euo pipefail
         mkdir -p $(dirname {output.raw_stats}) $(dirname {log})
 
-        seqkit stats -a -T {input.raw_r1} {input.raw_r2} > {output.raw_stats} 2> {log}
-        seqkit stats -a -T {input.clean_r1} {input.clean_r2} > {output.clean_stats} 2>> {log}
+        seqkit stats -a -T -j {threads} {input.raw_r1} {input.raw_r2} > {output.raw_stats} 2> {log}
+        seqkit stats -a -T -j {threads} {input.clean_r1} {input.clean_r2} > {output.clean_stats} 2>> {log}
         """
 
 rule multiqc:
