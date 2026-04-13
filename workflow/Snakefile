@@ -30,9 +30,5 @@ rule all:
         f"{OUTDIR}/ciri3/all_samples.ciri3.BSJ_Matrix",
         f"{OUTDIR}/ciri3/all_samples.ciri3.FSJ_Matrix",
 
-        # seqkit stats (per-sample raw + cleaned reads)
-        expand(f"{OUTDIR}/qc/seqkit/{{sample}}/raw.seqkit.stats.tsv", sample=SAMPLES),
-        expand(f"{OUTDIR}/qc/seqkit/{{sample}}/clean.seqkit.stats.tsv", sample=SAMPLES),
-
         # summary QC
         f"{OUTDIR}/qc/multiqc/multiqc_report.html"
