@@ -3,7 +3,6 @@ threads:
   star: 16
   samtools: 8
   featurecounts: 8
-  seqkit: 4
 
 reference:
   # STAR genome index folder (must be prebuilt, e.g. contains SA file)

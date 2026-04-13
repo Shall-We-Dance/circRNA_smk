@@ -11,8 +11,6 @@ This repository provides a reproducible Snakemake workflow for analyzing circula
 ### Outputs
 - **QC**
   - `results/qc/fastp/<sample>/fastp.html/json` (per-sample)
-  - `results/qc/seqkit/<sample>/raw.seqkit.stats.tsv` (per-sample merged raw reads)
-  - `results/qc/seqkit/<sample>/clean.seqkit.stats.tsv` (per-sample fastp-cleaned reads)
   - `results/qc/multiqc/multiqc_report.html`
 - **Alignment**
   - `results/star/<sample>/<sample>.Aligned.sortedByCoord.out.bam` (optional, controlled by `output.keep_bam`)
@@ -40,16 +38,13 @@ To minimize storage footprint, intermediate FASTQs produced by fastp and merged 
 2. **fastp QC (per-sample)**  
    The merged FASTQs are processed by fastp once per sample. This produces sample-level HTML/JSON reports that are consistent with the reads used for alignment. The cleaned FASTQs from this step are temporary.
 
-3. **seqkit stats QC (per-sample)**  
-   `seqkit stats` is run on both merged raw FASTQs and fastp-cleaned FASTQs to generate tabular QC summaries (`-a -T`) that are collected by MultiQC.
-
-4. **STAR alignment**  
+3. **STAR alignment**  
    Reads are aligned with STAR and a coordinate-sorted BAM is generated directly by STAR.
 
-5. **BWA remapping for CIRI3**  
+4. **BWA remapping for CIRI3**  
    Unmapped STAR mates are remapped by BWA to generate the CIRI3-required BWA BAM.
 
-6. **circRNA quantification and aggregation**  
+5. **circRNA quantification and aggregation**  
    Gene-level quantification is generated with featureCounts and circular RNA detection is run with CIRI3. The workflow writes per-sample CIRI3 outputs first, then merges all samples into `all_samples.ciri3`, `all_samples.ciri3.BSJ_Matrix`, and `all_samples.ciri3.FSJ_Matrix` with sample names as matrix column names.
 
 ## Requirements
@@ -60,7 +55,6 @@ To minimize storage footprint, intermediate FASTQs produced by fastp and merged 
 - samtools
 - fastp
 - MultiQC
-- seqkit
 - CIRI3 (download from https://github.com/gyjames/CIRI3 ; this workflow uses the Java 18 build)
 - Python packages: `pysam`
 
