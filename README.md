@@ -24,6 +24,16 @@ This repository provides a reproducible Snakemake workflow for analyzing circula
   - `results/ciri3/all_samples.ciri3`
   - `results/ciri3/all_samples.ciri3.BSJ_Matrix`
   - `results/ciri3/all_samples.ciri3.FSJ_Matrix`
+- **BSJ differential expression (optional, DESeq2)**
+  - `results/deg/bsj/sample_metadata.tsv`
+  - `results/deg/bsj/all_groups/deseq2_results.tsv`
+  - `results/deg/bsj/all_groups/volcano.pdf`
+  - `results/deg/bsj/all_groups/heatmap_top50.pdf`
+  - `results/deg/bsj/all_groups/pca.pdf`
+  - `results/deg/bsj/all_groups/vst_counts.tsv`
+  - `results/deg/bsj/pairwise/<GroupA>_vs_<GroupB>/deseq2_results.tsv`
+  - `results/deg/bsj/pairwise/<GroupA>_vs_<GroupB>/volcano.pdf`
+  - `results/deg/bsj/pairwise/<GroupA>_vs_<GroupB>/heatmap_top50.pdf`
 ### Intermediate file handling
 To minimize storage footprint, intermediate FASTQs produced by fastp and merged FASTQs are marked as temporary and are removed automatically by Snakemake. In addition, STAR/BWA BAM files are temporary by default (`output.keep_bam: false`) and will be removed after downstream rules finish. Set `output.keep_bam: true` if you want to retain BAM/BAI files. Final deliverables include:
 - QC reports (fastp + multiqc)
@@ -46,6 +56,12 @@ To minimize storage footprint, intermediate FASTQs produced by fastp and merged 
 
 5. **circRNA quantification and aggregation**  
    Gene-level quantification is generated with featureCounts and circular RNA detection is run with CIRI3. The workflow writes per-sample CIRI3 outputs first, then merges all samples into `all_samples.ciri3`, `all_samples.ciri3.BSJ_Matrix`, and `all_samples.ciri3.FSJ_Matrix` with sample names as matrix column names.
+
+6. **BSJ differential expression (optional)**  
+   When `deg.enabled: true`, the pipeline uses `all_samples.ciri3.BSJ_Matrix` as count input and performs:
+   - a full multi-group DESeq2 model (`design = ~ group`) to obtain overall BSJ DEG signals,
+   - all pairwise group comparisons,
+   - visualization outputs for each analysis (volcano plots, heatmaps, PCA).
 
 ## Requirements
 
@@ -87,6 +103,8 @@ Key fields:
 * `reference.gtf`: reference annotation GTF
 * `samples`: mapping of sample name to lists of FASTQs for R1 and R2
 * `output.keep_bam`: keep STAR/BWA BAM files (`false` by default to save disk)
+* `deg.enabled`: run optional BSJ-level DE analysis (`false` by default)
+* `deg.groups`: group-to-sample mapping for DESeq2 analysis
 
 Example:
 
@@ -105,6 +123,19 @@ samples:
     R2:
       - "raw/sampleA_L001_R2.fastq.gz"
       - "raw/sampleA_L002_R2.fastq.gz"
+  sampleB:
+    R1:
+      - "raw/sampleB_R1.fastq.gz"
+    R2:
+      - "raw/sampleB_R2.fastq.gz"
+
+deg:
+  enabled: true
+  groups:
+    GroupA:
+      - sampleA
+    GroupB:
+      - sampleB
 ```
 
 Notes:
