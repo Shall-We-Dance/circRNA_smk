@@ -26,7 +26,8 @@ rule run_homer_bsj_motif:
         site_fasta=f"{OUTDIR}/motif/bsj_sites.fa"
     output:
         motif_summary=f"{OUTDIR}/motif/bsj_motif_summary.tsv",
-        homer_dir=directory(f"{OUTDIR}/motif/homer")
+        homer_dir=directory(f"{OUTDIR}/motif/homer"),
+        known_results=f"{OUTDIR}/motif/homer/knownResults.txt"
     log:
         "logs/motif/homer.log"
     threads: int(config["threads"].get("samtools", 1))
@@ -44,9 +45,11 @@ rule run_homer_bsj_motif:
           -p {threads} \
           > {log} 2>&1
 
-        if [ -s {output.homer_dir}/knownResults.txt ]; then
-          cp {output.homer_dir}/knownResults.txt {output.motif_summary}
+        if [ -s {output.known_results} ]; then
+          cp {output.known_results} {output.motif_summary}
         elif [ -s {output.homer_dir}/homerMotifs.all.motifs ]; then
+          printf "# HOMER completed, but knownResults.txt is missing.\n" > {output.known_results}
+          printf "# Please inspect: %s\n" "{output.homer_dir}/homerMotifs.all.motifs" >> {output.known_results}
           printf "# HOMER completed, but knownResults.txt is missing.\n" > {output.motif_summary}
           printf "# Please inspect: %s\n" "{output.homer_dir}/homerMotifs.all.motifs" >> {output.motif_summary}
         else
