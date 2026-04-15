@@ -5,12 +5,12 @@ OUTDIR = config["output"]["dir"]
 
 rule prepare_bsj_motif_inputs:
     input:
-        bsj=f"{OUTDIR}/ciri3/all_samples.ciri3.BSJ_Matrix",
-        ciri3=f"{OUTDIR}/ciri3/all_samples.ciri3",
+        bsj=f"{OUTDIR}/ciri3/star/{{sample}}.ciri3.BSJ_Matrix",
+        ciri3=f"{OUTDIR}/ciri3/star/{{sample}}.ciri3",
         fasta=config["reference"]["fasta"]
     output:
-        site_table=f"{OUTDIR}/motif/bsj_sites.tsv",
-        site_fasta=f"{OUTDIR}/motif/bsj_sites.fa"
+        site_table=f"{OUTDIR}/motif/{{sample}}/bsj_sites.tsv",
+        site_fasta=f"{OUTDIR}/motif/{{sample}}/bsj_sites.fa"
     conda:
         "envs/motif.yaml"
     params:
@@ -22,14 +22,14 @@ rule prepare_bsj_motif_inputs:
 
 rule run_homer_bsj_motif:
     input:
-        site_table=f"{OUTDIR}/motif/bsj_sites.tsv",
-        site_fasta=f"{OUTDIR}/motif/bsj_sites.fa"
+        site_table=f"{OUTDIR}/motif/{{sample}}/bsj_sites.tsv",
+        site_fasta=f"{OUTDIR}/motif/{{sample}}/bsj_sites.fa"
     output:
-        motif_summary=f"{OUTDIR}/motif/bsj_motif_summary.tsv",
-        homer_dir=directory(f"{OUTDIR}/motif/homer"),
-        known_results=f"{OUTDIR}/motif/homer/knownResults.txt"
+        motif_summary=f"{OUTDIR}/motif/{{sample}}/bsj_motif_summary.tsv",
+        homer_dir=directory(f"{OUTDIR}/motif/{{sample}}/homer"),
+        known_results=f"{OUTDIR}/motif/{{sample}}/homer/knownResults.txt"
     log:
-        "logs/motif/homer.log"
+        "logs/motif/{sample}.homer.log"
     threads: int(config["threads"].get("samtools", 1))
     conda:
         "envs/motif.yaml"

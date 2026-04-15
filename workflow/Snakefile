@@ -99,9 +99,14 @@ rule all:
         f"{OUTDIR}/ciri3/all_samples.ciri3.FSJ_Matrix",
         *(
             [
-                f"{OUTDIR}/motif/bsj_sites.tsv",
-                f"{OUTDIR}/motif/bsj_motif_summary.tsv",
-                f"{OUTDIR}/motif/homer/knownResults.txt",
+                *expand(f"{OUTDIR}/motif/{{sample}}/bsj_sites.tsv", sample=SAMPLES),
+                *expand(
+                    f"{OUTDIR}/motif/{{sample}}/bsj_motif_summary.tsv", sample=SAMPLES
+                ),
+                *expand(
+                    f"{OUTDIR}/motif/{{sample}}/homer/knownResults.txt",
+                    sample=SAMPLES,
+                ),
             ]
             if MOTIF_ENABLED
             else []
