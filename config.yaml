@@ -60,6 +60,13 @@ output:
 deg:
   # run BSJ differential analysis with DESeq2
   enabled: false
+  # minimum BSJ count across selected samples
+  min_total_count: 10
+  # minimum number of selected samples with BSJ count > 0
+  min_samples_detected: 2
+  # significance thresholds used for labels and volcano highlighting
+  padj_cutoff: 0.05
+  lfc_cutoff: 1.0
   # group name -> sample names (must exist in "samples")
   groups:
     GroupA:
