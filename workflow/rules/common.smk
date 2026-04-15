@@ -8,7 +8,7 @@ rule faidx_reference:
         fa=config["reference"]["fasta"]
     output:
         fai=config["reference"]["fasta"] + ".fai"
-    threads: 2
+    threads: int(config["threads"].get("faidx", 2))
     conda:
         "envs/samtools.yaml"
     shell:

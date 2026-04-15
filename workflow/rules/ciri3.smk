@@ -13,7 +13,7 @@ rule star_bam_index_for_ciri3:
         bam=f"{OUTDIR}/star/{{sample}}/{{sample}}.Aligned.sortedByCoord.out.bam"
     output:
         bai=maybe_temp(f"{OUTDIR}/star/{{sample}}/{{sample}}.Aligned.sortedByCoord.out.bam.bai")
-    threads: int(config["threads"]["samtools"])
+    threads: int(config["threads"].get("samtools_index", config["threads"].get("samtools", 1)))
     conda:
         "envs/samtools.yaml"
     shell:
@@ -37,7 +37,7 @@ rule ciri3_detect_star:
         fsj=f"{OUTDIR}/ciri3/star/{{sample}}.ciri3.FSJ_Matrix"
     log:
         "logs/ciri3/{sample}.detect.star.log"
-    threads: int(config["threads"].get("samtools", 1))
+    threads: int(config["threads"].get("samtools_view", config["threads"].get("samtools", 1)))
     conda:
         "envs/ciri3.yaml"
     params:

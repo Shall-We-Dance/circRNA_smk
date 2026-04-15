@@ -114,6 +114,7 @@ Key fields:
 * `reference.bwa_indexed_fasta`: BWA-indexed FASTA path (BWA sidecar files must already exist with this path as prefix)
 * `reference.gtf`: reference annotation GTF
 * `samples`: mapping of sample name to lists of FASTQs for R1 and R2
+* `threads`: module-level CPU thread settings (configure each module independently; e.g., `threads.homer` for HOMER, `threads.samtools_view` for CIRI3 SAM conversion)
 * `output.keep_bam`: keep STAR/BWA BAM files (`false` by default to save disk)
 * `deg.enabled`: run optional BSJ-level DE analysis (`false` by default)
 * `deg.groups`: group-to-sample mapping for DESeq2 analysis
@@ -129,6 +130,17 @@ Key fields:
 Example:
 
 ```yaml
+threads:
+  merge_fastq: 2
+  fastp: 8
+  star: 16
+  bwa: 16
+  samtools_index: 8
+  samtools_view: 8
+  featurecounts: 8
+  faidx: 2
+  homer: 8
+
 reference:
   star_index: "/path/to/STAR/index"
   fasta: "/path/to/genome.fa"

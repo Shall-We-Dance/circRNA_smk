@@ -30,7 +30,7 @@ rule run_homer_bsj_motif:
         known_results=f"{OUTDIR}/motif/{{sample}}/homer/knownResults.txt"
     log:
         "logs/motif/{sample}.homer.log"
-    threads: int(config["threads"].get("samtools", 1))
+    threads: int(config["threads"].get("homer", 1))
     conda:
         "envs/motif.yaml"
     params:

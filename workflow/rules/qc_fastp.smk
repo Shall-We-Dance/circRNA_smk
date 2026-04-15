@@ -15,7 +15,7 @@ rule merge_raw_fastq_per_sample:
     output:
         merged_r1=temp(f"{OUTDIR}/tmp/merged_raw/{{sample}}_R1.fastq.gz"),
         merged_r2=temp(f"{OUTDIR}/tmp/merged_raw/{{sample}}_R2.fastq.gz")
-    threads: 2
+    threads: int(config["threads"].get("merge_fastq", 2))
     shell:
         r"""
         set -euo pipefail
