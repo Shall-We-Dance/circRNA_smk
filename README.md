@@ -24,6 +24,8 @@ This repository provides a reproducible Snakemake workflow for analyzing circula
   - `results/ciri3/all_samples.ciri3`
   - `results/ciri3/all_samples.ciri3.BSJ_Matrix`
   - `results/ciri3/all_samples.ciri3.FSJ_Matrix`
+  - `results/motif/bsj_sites.tsv`
+  - `results/motif/bsj_motif_summary.tsv`
 - **BSJ differential expression (optional, DESeq2)**
   - `results/deg/bsj/sample_metadata.tsv`
   - `results/deg/bsj/all_groups/deseq2_results.tsv`
@@ -62,6 +64,11 @@ To minimize storage footprint, intermediate FASTQs produced by fastp and merged 
    - a full multi-group DESeq2 model (`design = ~ group`) to obtain overall BSJ DEG signals,
    - all pairwise group comparisons,
    - visualization outputs for each analysis (volcano plots, heatmaps, PCA).
+
+7. **BSJ motif analysis (optional, enabled by default)**  
+   The workflow scans BSJ-adjacent sequence windows from `all_samples.ciri3.BSJ_Matrix`, uses merged CIRI3 outputs to infer strand (`+/-`) where available, and reports:
+   - per-BSJ donor/acceptor windows (`bsj_sites.tsv`),
+   - donor/acceptor motif summary with total occurrences, unique-BSJ support, and count-weighted support (`bsj_motif_summary.tsv`).
 
 ## Requirements
 
@@ -105,6 +112,10 @@ Key fields:
 * `output.keep_bam`: keep STAR/BWA BAM files (`false` by default to save disk)
 * `deg.enabled`: run optional BSJ-level DE analysis (`false` by default)
 * `deg.groups`: group-to-sample mapping for DESeq2 analysis
+* `motif.enabled`: run BSJ motif module (`true` by default)
+* `motif.flank`: sequence window half-size around BSJ donor/acceptor (default `30`)
+* `motif.kmer`: motif length to scan (default `4`)
+* `motif.weight_mode`: BSJ weighting strategy (`sum`, `mean`, or `none`)
 
 Example:
 

@@ -28,6 +28,9 @@ DEG_GROUPS = deg_cfg.get("groups", {})
 DEG_GROUP_NAMES = sorted(DEG_GROUPS.keys())
 DEG_PAIRWISE = list(combinations(DEG_GROUP_NAMES, 2))
 
+motif_cfg = config.get("motif", {})
+MOTIF_ENABLED = _as_bool(motif_cfg.get("enabled", True), default=True)
+
 if DEG_ENABLED:
     if len(DEG_GROUP_NAMES) < 2:
         raise ValueError("DEG is enabled, but fewer than 2 groups are configured.")
@@ -81,6 +84,14 @@ rule all:
         f"{OUTDIR}/ciri3/all_samples.ciri3",
         f"{OUTDIR}/ciri3/all_samples.ciri3.BSJ_Matrix",
         f"{OUTDIR}/ciri3/all_samples.ciri3.FSJ_Matrix",
+        *(
+            [
+                f"{OUTDIR}/motif/bsj_sites.tsv",
+                f"{OUTDIR}/motif/bsj_motif_summary.tsv",
+            ]
+            if MOTIF_ENABLED
+            else []
+        ),
 
         # summary QC
         f"{OUTDIR}/qc/multiqc/multiqc_report.html",
