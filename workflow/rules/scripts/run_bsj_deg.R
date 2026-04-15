@@ -76,7 +76,22 @@ dds <- DESeqDataSetFromMatrix(
 dds <- dds[rowSums(counts(dds)) > 1, ]
 dds <- DESeq(dds)
 
-vst_mat <- assay(vst(dds, blind = FALSE))
+norm_means <- rowMeans(counts(dds, normalized = TRUE))
+nsub <- min(1000, length(norm_means))
+high_count_rows <- sum(norm_means > 5)
+
+if (high_count_rows < nsub) {
+  message(
+    "Detected only ", high_count_rows,
+    " rows with mean normalized count > 5 (< nsub=", nsub, "). ",
+    "Using varianceStabilizingTransformation() instead of vst()."
+  )
+  vst_obj <- varianceStabilizingTransformation(dds, blind = FALSE)
+} else {
+  vst_obj <- vst(dds, blind = FALSE)
+}
+
+vst_mat <- assay(vst_obj)
 dir.create(dirname(snakemake@output[["vst_counts"]]), recursive = TRUE, showWarnings = FALSE)
 write.table(
   data.frame(circRNA = rownames(vst_mat), vst_mat, check.names = FALSE),
@@ -141,7 +156,7 @@ sig_all <- sig_all[order(sig_all$padj, -abs(sig_all$log2FoldChange)), ]
 plot_heatmap(vst_mat, sig_all$circRNA, snakemake@output[["all_heatmap"]], "Top significant BSJs (all groups)")
 
 pdf(snakemake@output[["pca"]], width = 7, height = 5)
-plotPCA(vst(dds, blind = FALSE), intgroup = "group")
+plotPCA(vst_obj, intgroup = "group")
 dev.off()
 
 group_levels <- levels(design$group)
