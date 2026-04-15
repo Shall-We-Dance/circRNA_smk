@@ -42,6 +42,16 @@ ciri3:
   Ma: 1
   W: 1
 
+motif:
+  # run BSJ-centered motif analysis based on all_samples.ciri3.BSJ_Matrix
+  enabled: true
+  # sequence window size on each side of BSJ donor/acceptor site
+  flank: 30
+  # motif size (k-mer)
+  kmer: 4
+  # how to weight each BSJ when aggregating motif support: sum | mean | none
+  weight_mode: "sum"
+
 output:
   dir: "results"
   # keep STAR/BWA BAM files after pipeline finishes
