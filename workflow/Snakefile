@@ -76,6 +76,7 @@ include: "rules/qc_fastp.smk"
 include: "rules/align_star.smk"
 include: "rules/featurecount.smk"
 include: "rules/ciri3.smk"
+include: "rules/motif.smk"
 include: "rules/deg.smk"
 
 rule all:
@@ -100,6 +101,7 @@ rule all:
             [
                 f"{OUTDIR}/motif/bsj_sites.tsv",
                 f"{OUTDIR}/motif/bsj_motif_summary.tsv",
+                f"{OUTDIR}/motif/homer/knownResults.txt",
             ]
             if MOTIF_ENABLED
             else []

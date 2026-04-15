@@ -43,14 +43,14 @@ ciri3:
   W: 1
 
 motif:
-  # run BSJ-centered motif analysis based on all_samples.ciri3.BSJ_Matrix
+  # run BSJ-centered motif analysis with HOMER based on all_samples.ciri3.BSJ_Matrix
   enabled: true
   # sequence window size on each side of BSJ donor/acceptor site
   flank: 30
-  # motif size (k-mer)
-  kmer: 4
-  # how to weight each BSJ when aggregating motif support: sum | mean | none
+  # how to weight each BSJ when aggregating site-level support for sequence export: sum | mean | none
   weight_mode: "sum"
+  # motif lengths for HOMER findMotifs.pl, comma-separated
+  homer_len: "8,10,12"
 
 output:
   dir: "results"
