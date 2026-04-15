@@ -18,9 +18,9 @@ This repository provides a reproducible Snakemake workflow for analyzing circula
   - `results/star/<sample>/<sample>.bwa.bam` (optional, controlled by `output.keep_bam`)
 - **Quantification / circRNA**
   - `results/featurecount/totalRNA.counts.txt`
-  - `results/ciri3/star/<sample>.ciri3`
-  - `results/ciri3/star/<sample>.ciri3.BSJ_Matrix`
-  - `results/ciri3/star/<sample>.ciri3.FSJ_Matrix`
+  - `results/ciri3/per_sample/<sample>.ciri3`
+  - `results/ciri3/per_sample/<sample>.ciri3.BSJ_Matrix`
+  - `results/ciri3/per_sample/<sample>.ciri3.FSJ_Matrix`
   - `results/ciri3/all_samples.ciri3`
   - `results/ciri3/all_samples.ciri3.BSJ_Matrix`
   - `results/ciri3/all_samples.ciri3.FSJ_Matrix`
@@ -30,7 +30,6 @@ This repository provides a reproducible Snakemake workflow for analyzing circula
 - **BSJ differential expression (optional, DESeq2)**
   - `results/deg/bsj/sample_metadata.tsv`
   - `results/deg/bsj/all_groups/deseq2_results.tsv`
-  - `results/deg/bsj/all_groups/volcano.pdf`
   - `results/deg/bsj/all_groups/heatmap_top50.pdf`
   - `results/deg/bsj/all_groups/pca.pdf`
   - `results/deg/bsj/all_groups/vst_counts.tsv`
@@ -66,7 +65,7 @@ To minimize storage footprint, intermediate FASTQs produced by fastp and merged 
    - configurable low-abundance filtering before DESeq2 (`deg.min_total_count`, `deg.min_samples_detected`),
    - a full multi-group DESeq2 model (`design = ~ group`) to obtain overall BSJ DEG signals,
    - all pairwise group comparisons (reported as `GroupB vs GroupA`; positive log2FC means higher in `GroupB`),
-   - visualization outputs for each analysis (volcano plots, heatmaps, PCA).
+   - visualization outputs for each analysis (pairwise volcano plots, heatmaps with gene labels, PCA).
 
 7. **BSJ motif analysis (optional, enabled by default)**  
    The workflow first exports BSJ donor/acceptor sequence windows from `all_samples.ciri3.BSJ_Matrix` into `bsj_sites.tsv` and `bsj_sites.fa`, then runs HOMER `findMotifs.pl` on the FASTA. It outputs:
