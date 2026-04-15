@@ -95,21 +95,3 @@ rule merge_ciri3_outputs:
         samples=SAMPLES
     script:
         "scripts/merge_ciri3_outputs.py"
-
-
-rule bsj_motif_analysis:
-    input:
-        bsj=f"{OUTDIR}/ciri3/all_samples.ciri3.BSJ_Matrix",
-        ciri3=f"{OUTDIR}/ciri3/all_samples.ciri3",
-        fasta=config["reference"]["fasta"]
-    output:
-        site_table=f"{OUTDIR}/motif/bsj_sites.tsv",
-        motif_summary=f"{OUTDIR}/motif/bsj_motif_summary.tsv"
-    conda:
-        "envs/py_signal.yaml"
-    params:
-        flank=int(config.get("motif", {}).get("flank", 30)),
-        kmer=int(config.get("motif", {}).get("kmer", 4)),
-        weight_mode=str(config.get("motif", {}).get("weight_mode", "sum"))
-    script:
-        "scripts/bsj_motif_analysis.py"

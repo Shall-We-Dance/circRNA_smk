@@ -1,8 +1,5 @@
-from __future__ import annotations
-
 import csv
 import re
-from collections import Counter, defaultdict
 from pathlib import Path
 
 import pysam
@@ -13,20 +10,15 @@ ciri3_merged_path = Path(snakemake.input.ciri3)
 fasta_path = Path(snakemake.input.fasta)
 
 site_out = Path(snakemake.output.site_table)
-summary_out = Path(snakemake.output.motif_summary)
+site_fasta_out = Path(snakemake.output.site_fasta)
 
 flank = int(snakemake.params.get("flank", 30))
-kmer_size = int(snakemake.params.get("kmer", 4))
 weight_mode = str(snakemake.params.get("weight_mode", "sum")).strip().lower()
 
-
-if kmer_size <= 0:
-    raise ValueError("motif.kmer must be a positive integer")
-if flank < kmer_size:
-    raise ValueError("motif.flank must be >= motif.kmer")
+if flank < 1:
+    raise ValueError("motif.flank must be >= 1")
 if weight_mode not in {"sum", "mean", "none"}:
     raise ValueError("motif.weight_mode must be one of: sum, mean, none")
-
 
 _comp = str.maketrans("ACGTNacgtn", "TGCANtgcan")
 
@@ -36,12 +28,6 @@ def revcomp(seq: str) -> str:
 
 
 def parse_bsj_id(circ_id: str):
-    """
-    Parse common CIRI-style BSJ ids, e.g.
-      chr1:100|200
-      chr1:100-200
-      chr1:100..200
-    """
     m = re.match(r"^([^:]+):(\d+)(?:\||-|\.\.)(\d+)$", circ_id)
     if not m:
         return None
@@ -116,17 +102,13 @@ def read_bsj_counts(bsj_file: Path):
 def extract_site_sequences(fasta: pysam.FastaFile, chrom: str, pos_1based: int, flank_size: int):
     start0 = max(0, pos_1based - flank_size - 1)
     end0 = pos_1based + flank_size
-    seq = fasta.fetch(chrom, start0, end0).upper()
-    return seq
+    return fasta.fetch(chrom, start0, end0).upper()
 
 
 strand_map = get_ciri3_strand_map(ciri3_merged_path)
 bsj_weights = read_bsj_counts(bsj_matrix_path)
 
 site_rows = []
-motif_total = Counter()
-motif_unique = Counter()
-motif_weighted = defaultdict(float)
 
 with pysam.FastaFile(str(fasta_path)) as fa:
     for circ_id, weight in bsj_weights.items():
@@ -139,7 +121,6 @@ with pysam.FastaFile(str(fasta_path)) as fa:
             continue
 
         strand = strand_map.get(circ_id, "+")
-
         donor_seq = extract_site_sequences(fa, chrom, bsj_start, flank)
         acceptor_seq = extract_site_sequences(fa, chrom, bsj_end, flank)
 
@@ -160,19 +141,6 @@ with pysam.FastaFile(str(fasta_path)) as fa:
             }
         )
 
-        seen_once = set()
-        for side, seq in (("donor", donor_seq), ("acceptor", acceptor_seq)):
-            for i in range(0, len(seq) - kmer_size + 1):
-                motif = seq[i : i + kmer_size]
-                if "N" in motif:
-                    continue
-                key = (side, motif)
-                motif_total[key] += 1
-                if key not in seen_once:
-                    motif_unique[key] += 1
-                    motif_weighted[key] += weight
-                    seen_once.add(key)
-
 site_out.parent.mkdir(parents=True, exist_ok=True)
 with site_out.open("w", newline="") as fh:
     fieldnames = [
@@ -189,42 +157,12 @@ with site_out.open("w", newline="") as fh:
     writer.writeheader()
     writer.writerows(site_rows)
 
-summary_out.parent.mkdir(parents=True, exist_ok=True)
-with summary_out.open("w", newline="") as fh:
-    writer = csv.writer(fh, delimiter="\t")
-    writer.writerow(
-        [
-            "side",
-            "motif",
-            "total_occurrence",
-            "unique_bsj_occurrence",
-            "weighted_bsj_occurrence",
-            "weight_mode",
-            "kmer",
-            "flank",
-        ]
-    )
-
-    def sort_key(item):
-        key, _ = item
-        return (
-            -motif_weighted.get(key, 0.0),
-            -motif_unique.get(key, 0),
-            -motif_total.get(key, 0),
-            key[0],
-            key[1],
+site_fasta_out.parent.mkdir(parents=True, exist_ok=True)
+with site_fasta_out.open("w") as fh:
+    for row in site_rows:
+        prefix = (
+            f"{row['circRNA_ID']}|{row['chrom']}:{row['bsj_start']}-{row['bsj_end']}"
+            f"|strand={row['strand']}|weight={row['weight']}"
         )
-
-    for (side, motif), total in sorted(motif_total.items(), key=sort_key):
-        writer.writerow(
-            [
-                side,
-                motif,
-                total,
-                motif_unique[(side, motif)],
-                f"{motif_weighted[(side, motif)]:.6g}",
-                weight_mode,
-                kmer_size,
-                flank,
-            ]
-        )
+        fh.write(f">{prefix}|site=donor\n{row['donor_window_seq']}\n")
+        fh.write(f">{prefix}|site=acceptor\n{row['acceptor_window_seq']}\n")
