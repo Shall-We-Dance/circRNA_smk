@@ -61,8 +61,10 @@ To minimize storage footprint, intermediate FASTQs produced by fastp and merged 
 
 6. **BSJ differential expression (optional)**  
    When `deg.enabled: true`, the pipeline uses `all_samples.ciri3.BSJ_Matrix` as count input and performs:
+   - parsing BSJ identifiers (`seqname:start|end`) into genomic coordinate columns,
+   - configurable low-abundance filtering before DESeq2 (`deg.min_total_count`, `deg.min_samples_detected`),
    - a full multi-group DESeq2 model (`design = ~ group`) to obtain overall BSJ DEG signals,
-   - all pairwise group comparisons,
+   - all pairwise group comparisons (reported as `GroupB vs GroupA`; positive log2FC means higher in `GroupB`),
    - visualization outputs for each analysis (volcano plots, heatmaps, PCA).
 
 7. **BSJ motif analysis (optional, enabled by default)**  
@@ -112,6 +114,10 @@ Key fields:
 * `output.keep_bam`: keep STAR/BWA BAM files (`false` by default to save disk)
 * `deg.enabled`: run optional BSJ-level DE analysis (`false` by default)
 * `deg.groups`: group-to-sample mapping for DESeq2 analysis
+* `deg.min_total_count`: minimum total BSJ count across selected samples (default `10`)
+* `deg.min_samples_detected`: minimum number of samples with BSJ count > 0 (default `2`)
+* `deg.padj_cutoff`: adjusted p-value threshold used for significance labels/plots (default `0.05`)
+* `deg.lfc_cutoff`: absolute log2 fold-change threshold used for significance labels/plots (default `1.0`)
 * `motif.enabled`: run BSJ motif module (`true` by default)
 * `motif.flank`: sequence window half-size around BSJ donor/acceptor (default `30`)
 * `motif.kmer`: motif length to scan (default `4`)
@@ -142,6 +148,10 @@ samples:
 
 deg:
   enabled: true
+  min_total_count: 10
+  min_samples_detected: 2
+  padj_cutoff: 0.05
+  lfc_cutoff: 1.0
   groups:
     GroupA:
       - sampleA

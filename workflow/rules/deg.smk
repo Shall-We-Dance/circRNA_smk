@@ -24,7 +24,11 @@ rule bsj_deg_analysis:
             pair=[f"{a}_vs_{b}" for a, b in DEG_PAIRWISE],
         )
     params:
-        groups=DEG_GROUPS
+        groups=DEG_GROUPS,
+        min_total_count=DEG_MIN_TOTAL_COUNT,
+        min_samples_detected=DEG_MIN_SAMPLES_DETECTED,
+        padj_cutoff=DEG_PADJ_CUTOFF,
+        lfc_cutoff=DEG_LFC_CUTOFF
     conda:
         "envs/deg.yaml"
     log:

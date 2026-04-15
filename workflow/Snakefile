@@ -27,6 +27,10 @@ DEG_ENABLED = _as_bool(deg_cfg.get("enabled", False), default=False)
 DEG_GROUPS = deg_cfg.get("groups", {})
 DEG_GROUP_NAMES = sorted(DEG_GROUPS.keys())
 DEG_PAIRWISE = list(combinations(DEG_GROUP_NAMES, 2))
+DEG_MIN_TOTAL_COUNT = int(deg_cfg.get("min_total_count", 10))
+DEG_MIN_SAMPLES_DETECTED = int(deg_cfg.get("min_samples_detected", 2))
+DEG_PADJ_CUTOFF = float(deg_cfg.get("padj_cutoff", 0.05))
+DEG_LFC_CUTOFF = float(deg_cfg.get("lfc_cutoff", 1.0))
 
 motif_cfg = config.get("motif", {})
 MOTIF_ENABLED = _as_bool(motif_cfg.get("enabled", True), default=True)
@@ -34,6 +38,14 @@ MOTIF_ENABLED = _as_bool(motif_cfg.get("enabled", True), default=True)
 if DEG_ENABLED:
     if len(DEG_GROUP_NAMES) < 2:
         raise ValueError("DEG is enabled, but fewer than 2 groups are configured.")
+    if DEG_MIN_TOTAL_COUNT < 0:
+        raise ValueError("deg.min_total_count must be >= 0.")
+    if DEG_MIN_SAMPLES_DETECTED < 1:
+        raise ValueError("deg.min_samples_detected must be >= 1.")
+    if not (0 < DEG_PADJ_CUTOFF < 1):
+        raise ValueError("deg.padj_cutoff must be in (0, 1).")
+    if DEG_LFC_CUTOFF < 0:
+        raise ValueError("deg.lfc_cutoff must be >= 0.")
 
     unknown_samples = sorted(
         sample
