@@ -1,8 +1,13 @@
 threads:
-  fastp: 8
-  star: 16
-  samtools: 8
-  featurecounts: 8
+  merge_fastq: 2          # merge lane FASTQ files by sample
+  fastp: 8                # fastp --thread
+  star: 16                # STAR --runThreadN
+  bwa: 16                 # bwa mem -t (for CIRI3 remap)
+  samtools_index: 8       # samtools index -@
+  samtools_view: 8        # samtools view -@ (CIRI3 prep)
+  featurecounts: 8        # featureCounts -T
+  faidx: 2                # samtools faidx (reference index)
+  homer: 8                # findMotifs.pl -p
 
 reference:
   # STAR genome index folder (must be prebuilt, e.g. contains SA file)

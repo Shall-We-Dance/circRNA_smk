@@ -68,7 +68,7 @@ rule bwa_remap_ciri3:
         bwa_bam=maybe_temp(f"{OUTDIR}/star/{{sample}}/{{sample}}.bwa.bam")
     log:
         f"logs/star/{{sample}}.bwa.log"
-    threads: int(config["threads"]["star"])
+    threads: int(config["threads"].get("bwa", config["threads"]["star"]))
     conda:
         "envs/star.yaml"
     params:
