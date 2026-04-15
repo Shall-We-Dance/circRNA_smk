@@ -46,3 +46,21 @@ output:
   dir: "results"
   # keep STAR/BWA BAM files after pipeline finishes
   keep_bam: false
+
+deg:
+  # run BSJ differential analysis with DESeq2
+  enabled: false
+  # group name -> sample names (must exist in "samples")
+  groups:
+    GroupA:
+      - sampleA_rep1
+      - sampleA_rep2
+      - sampleA_rep3
+    GroupB:
+      - sampleB_rep1
+      - sampleB_rep2
+      - sampleB_rep3
+    GroupC:
+      - sampleC_rep1
+      - sampleC_rep2
+      - sampleC_rep3

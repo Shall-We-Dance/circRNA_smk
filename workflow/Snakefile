@@ -1,4 +1,5 @@
 import os
+from itertools import combinations
 
 configfile: "config.yaml"
 
@@ -6,10 +7,61 @@ SAMPLES = list(config["samples"].keys())
 OUTDIR = config["output"]["dir"]
 KEEP_BAM = bool(config.get("output", {}).get("keep_bam", False))
 
+
+def _as_bool(value, default=False):
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "ture", "1", "yes", "y", "on"}:
+            return True
+        if normalized in {"false", "0", "no", "n", "off"}:
+            return False
+    return bool(value)
+
+
+deg_cfg = config.get("deg", {})
+DEG_ENABLED = _as_bool(deg_cfg.get("enabled", False), default=False)
+DEG_GROUPS = deg_cfg.get("groups", {})
+DEG_GROUP_NAMES = sorted(DEG_GROUPS.keys())
+DEG_PAIRWISE = list(combinations(DEG_GROUP_NAMES, 2))
+
+if DEG_ENABLED:
+    if len(DEG_GROUP_NAMES) < 2:
+        raise ValueError("DEG is enabled, but fewer than 2 groups are configured.")
+
+    unknown_samples = sorted(
+        sample
+        for members in DEG_GROUPS.values()
+        for sample in members
+        if sample not in SAMPLES
+    )
+    if unknown_samples:
+        raise ValueError(
+            "DEG group definitions include unknown samples: "
+            + ", ".join(unknown_samples)
+        )
+
+    sample_to_group = {}
+    duplicated = set()
+    for group_name, members in DEG_GROUPS.items():
+        for sample in members:
+            if sample in sample_to_group:
+                duplicated.add(sample)
+            sample_to_group[sample] = group_name
+    if duplicated:
+        raise ValueError(
+            "Each sample can only belong to one DEG group. Duplicated samples: "
+            + ", ".join(sorted(duplicated))
+        )
+
 include: "rules/qc_fastp.smk"
 include: "rules/align_star.smk"
 include: "rules/featurecount.smk"
 include: "rules/ciri3.smk"
+include: "rules/deg.smk"
 
 rule all:
     input:
@@ -31,4 +83,30 @@ rule all:
         f"{OUTDIR}/ciri3/all_samples.ciri3.FSJ_Matrix",
 
         # summary QC
-        f"{OUTDIR}/qc/multiqc/multiqc_report.html"
+        f"{OUTDIR}/qc/multiqc/multiqc_report.html",
+
+        # BSJ differential expression
+        *(
+            [
+                f"{OUTDIR}/deg/bsj/sample_metadata.tsv",
+                f"{OUTDIR}/deg/bsj/all_groups/deseq2_results.tsv",
+                f"{OUTDIR}/deg/bsj/all_groups/volcano.pdf",
+                f"{OUTDIR}/deg/bsj/all_groups/heatmap_top50.pdf",
+                f"{OUTDIR}/deg/bsj/all_groups/pca.pdf",
+                f"{OUTDIR}/deg/bsj/all_groups/vst_counts.tsv",
+            ]
+            + [
+                f"{OUTDIR}/deg/bsj/pairwise/{a}_vs_{b}/deseq2_results.tsv"
+                for a, b in DEG_PAIRWISE
+            ]
+            + [
+                f"{OUTDIR}/deg/bsj/pairwise/{a}_vs_{b}/volcano.pdf"
+                for a, b in DEG_PAIRWISE
+            ]
+            + [
+                f"{OUTDIR}/deg/bsj/pairwise/{a}_vs_{b}/heatmap_top50.pdf"
+                for a, b in DEG_PAIRWISE
+            ]
+            if DEG_ENABLED
+            else []
+        )

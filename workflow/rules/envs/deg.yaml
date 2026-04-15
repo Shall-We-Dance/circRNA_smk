@@ -1,0 +1,7 @@
+name: circrna_deg
+channels: [conda-forge, bioconda]
+dependencies:
+  - r-base=4.3
+  - bioconductor-deseq2
+  - r-ggplot2
+  - r-pheatmap
