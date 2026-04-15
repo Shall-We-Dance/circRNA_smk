@@ -17,6 +17,7 @@ on.exit({
 message("Starting BSJ DEG analysis.")
 
 counts_path <- snakemake@input[["bsj"]]
+ciri3_path <- snakemake@input[["ciri3"]]
 groups <- snakemake@params[["groups"]]
 padj_cutoff <- as.numeric(snakemake@params[["padj_cutoff"]])
 lfc_cutoff <- as.numeric(snakemake@params[["lfc_cutoff"]])
@@ -76,6 +77,63 @@ parse_circrna_id <- function(ids) {
   )
 }
 bsj_annot <- parse_circrna_id(rownames(counts))
+
+read_ciri3_annotation <- function(path) {
+  annot <- tryCatch(
+    read.table(
+      path,
+      header = TRUE,
+      sep = "\t",
+      check.names = FALSE,
+      stringsAsFactors = FALSE,
+      quote = ""
+    ),
+    error = function(e) {
+      warning("Unable to parse CIRI3 table for annotation: ", conditionMessage(e))
+      NULL
+    }
+  )
+  if (is.null(annot) || nrow(annot) == 0 || !("circRNA_ID" %in% colnames(annot))) {
+    return(data.frame(
+      circRNA = rownames(counts),
+      gene_id = NA_character_,
+      strand = NA_character_,
+      stringsAsFactors = FALSE
+    ))
+  }
+
+  map_column <- function(df, candidates) {
+    for (nm in candidates) {
+      if (nm %in% colnames(df)) return(nm)
+    }
+    NULL
+  }
+
+  gene_col <- map_column(annot, c("gene_id", "gene", "gene_name"))
+  strand_col <- map_column(annot, c("strand", "Strand", "bsj_strand"))
+
+  one_value <- function(v) {
+    vals <- unique(v[!is.na(v) & nzchar(trimws(v))])
+    if (length(vals) == 0) return(NA_character_)
+    paste(vals, collapse = ";")
+  }
+
+  split_idx <- split(seq_len(nrow(annot)), annot[["circRNA_ID"]])
+  out <- data.frame(
+    circRNA = names(split_idx),
+    gene_id = vapply(split_idx, function(idx) {
+      if (is.null(gene_col)) return(NA_character_)
+      one_value(as.character(annot[idx, gene_col]))
+    }, character(1)),
+    strand = vapply(split_idx, function(idx) {
+      if (is.null(strand_col)) return(NA_character_)
+      one_value(as.character(annot[idx, strand_col]))
+    }, character(1)),
+    stringsAsFactors = FALSE
+  )
+  out
+}
+ciri3_annot <- read_ciri3_annotation(ciri3_path)
 
 sample_to_group <- unlist(
   lapply(names(groups), function(group_name) {
@@ -157,12 +215,14 @@ plot_volcano <- function(res_df, title, out_file, alpha = 0.05, lfc_threshold = 
   dir.create(dirname(out_file), recursive = TRUE, showWarnings = FALSE)
   res_df$padj[is.na(res_df$padj)] <- 1
   res_df$log2FoldChange[is.na(res_df$log2FoldChange)] <- 0
-  res_df$significant <- res_df$padj < alpha & abs(res_df$log2FoldChange) >= lfc_threshold
+  res_df$reg_direction <- "Not_significant"
+  res_df$reg_direction[res_df$padj < alpha & res_df$log2FoldChange >= lfc_threshold] <- "Up"
+  res_df$reg_direction[res_df$padj < alpha & res_df$log2FoldChange <= -lfc_threshold] <- "Down"
   res_df$minus_log10_padj <- -log10(pmax(res_df$padj, .Machine$double.xmin))
 
-  p <- ggplot(res_df, aes(x = log2FoldChange, y = minus_log10_padj, color = significant)) +
+  p <- ggplot(res_df, aes(x = log2FoldChange, y = minus_log10_padj, color = reg_direction)) +
     geom_point(alpha = 0.6, size = 1.2) +
-    scale_color_manual(values = c("FALSE" = "grey70", "TRUE" = "#d7301f")) +
+    scale_color_manual(values = c("Up" = "#d7301f", "Down" = "#2c7fb8", "Not_significant" = "grey70")) +
     geom_vline(xintercept = c(-lfc_threshold, lfc_threshold), linetype = "dashed", color = "grey60", linewidth = 0.3) +
     geom_hline(yintercept = -log10(alpha), linetype = "dashed", color = "grey60", linewidth = 0.3) +
     theme_minimal(base_size = 11) +
@@ -175,7 +235,7 @@ plot_volcano <- function(res_df, title, out_file, alpha = 0.05, lfc_threshold = 
   ggsave(out_file, p, width = 7, height = 5)
 }
 
-plot_heatmap <- function(vst_values, sig_ids, out_file, title, top_n = 50) {
+plot_heatmap <- function(vst_values, sig_ids, feature_labels, out_file, title, top_n = 50) {
   dir.create(dirname(out_file), recursive = TRUE, showWarnings = FALSE)
   if (length(sig_ids) < 2) {
     pdf(out_file, width = 8, height = 6)
@@ -186,11 +246,15 @@ plot_heatmap <- function(vst_values, sig_ids, out_file, title, top_n = 50) {
   }
   keep_ids <- sig_ids[seq_len(min(length(sig_ids), top_n))]
   mat <- vst_values[keep_ids, , drop = FALSE]
+  row_labels <- feature_labels[keep_ids]
+  row_labels[is.na(row_labels) | row_labels == ""] <- keep_ids[is.na(row_labels) | row_labels == ""]
+  row_labels <- make.unique(row_labels, sep = "_")
   pheatmap(
     mat,
     cluster_rows = TRUE,
     cluster_cols = TRUE,
-    show_rownames = FALSE,
+    labels_row = row_labels,
+    show_rownames = TRUE,
     fontsize_col = 9,
     main = title,
     filename = out_file,
@@ -202,6 +266,7 @@ plot_heatmap <- function(vst_values, sig_ids, out_file, title, top_n = 50) {
 res_all <- results(dds)
 res_all_df <- data.frame(circRNA = rownames(res_all), as.data.frame(res_all), check.names = FALSE)
 res_all_df <- merge(bsj_annot, res_all_df, by = "circRNA", all.y = TRUE, sort = FALSE)
+res_all_df <- merge(res_all_df, ciri3_annot, by = "circRNA", all.x = TRUE, sort = FALSE)
 res_all_df$regulation <- ifelse(
   !is.na(res_all_df$padj) & res_all_df$padj < padj_cutoff & res_all_df$log2FoldChange >= lfc_cutoff,
   "Up",
@@ -214,10 +279,23 @@ res_all_df$regulation <- ifelse(
 dir.create(dirname(snakemake@output[["all_results"]]), recursive = TRUE, showWarnings = FALSE)
 write.table(res_all_df, file = snakemake@output[["all_results"]], sep = "\t", quote = FALSE, row.names = FALSE)
 
-plot_volcano(res_all_df, "BSJ DEG: all groups", snakemake@output[["all_volcano"]], alpha = padj_cutoff, lfc_threshold = lfc_cutoff)
 sig_all <- res_all_df[which(!is.na(res_all_df$padj) & res_all_df$padj < padj_cutoff & abs(res_all_df$log2FoldChange) >= lfc_cutoff), ]
 sig_all <- sig_all[order(sig_all$padj, -abs(sig_all$log2FoldChange)), ]
-plot_heatmap(vst_mat, sig_all$circRNA, snakemake@output[["all_heatmap"]], "Top significant BSJs (all groups)")
+feature_label_all <- setNames(
+  ifelse(
+    is.na(res_all_df$gene_id) | res_all_df$gene_id == "",
+    res_all_df$circRNA,
+    paste0(res_all_df$gene_id, " (", res_all_df$circRNA, ")")
+  ),
+  res_all_df$circRNA
+)
+plot_heatmap(
+  vst_mat,
+  sig_all$circRNA,
+  feature_label_all,
+  snakemake@output[["all_heatmap"]],
+  "Top significant BSJs (all groups)"
+)
 
 pdf(snakemake@output[["pca"]], width = 7, height = 5)
 plotPCA(vst_obj, intgroup = "group")
@@ -243,6 +321,7 @@ for (pair in pairwise) {
   res <- results(dds, contrast = c("group", g2, g1))
   res_df <- data.frame(circRNA = rownames(res), as.data.frame(res), check.names = FALSE)
   res_df <- merge(bsj_annot, res_df, by = "circRNA", all.y = TRUE, sort = FALSE)
+  res_df <- merge(res_df, ciri3_annot, by = "circRNA", all.x = TRUE, sort = FALSE)
   res_df$regulation <- ifelse(
     !is.na(res_df$padj) & res_df$padj < padj_cutoff & res_df$log2FoldChange >= lfc_cutoff,
     paste0("Up_in_", g2),
@@ -263,9 +342,18 @@ for (pair in pairwise) {
   sig <- res_df[which(!is.na(res_df$padj) & res_df$padj < padj_cutoff & abs(res_df$log2FoldChange) >= lfc_cutoff), ]
   sig <- sig[order(sig$padj, -abs(sig$log2FoldChange)), ]
   pair_samples <- design$sample[design$group %in% c(g1, g2)]
+  feature_labels <- setNames(
+    ifelse(
+      is.na(res_df$gene_id) | res_df$gene_id == "",
+      res_df$circRNA,
+      paste0(res_df$gene_id, " (", res_df$circRNA, ")")
+    ),
+    res_df$circRNA
+  )
   plot_heatmap(
     vst_mat[, pair_samples, drop = FALSE],
     sig$circRNA,
+    feature_labels,
     pair_heatmap[[pair_name]],
     paste0("Top significant BSJs: ", g1, " vs ", g2)
   )

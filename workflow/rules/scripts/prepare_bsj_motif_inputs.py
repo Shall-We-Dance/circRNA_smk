@@ -40,13 +40,15 @@ def parse_bsj_id(circ_id: str):
 
 def get_ciri3_strand_map(ciri3_file: Path):
     strand_map = {}
+    gene_map = {}
     with ciri3_file.open() as fh:
         reader = csv.DictReader(fh, delimiter="\t")
         if reader.fieldnames is None:
-            return strand_map
+            return strand_map, gene_map
 
         id_col = None
         strand_col = None
+        gene_col = None
         for candidate in ("circRNA_ID", "circRNA", "circ_id", "junction"):
             if candidate in reader.fieldnames:
                 id_col = candidate
@@ -55,17 +57,28 @@ def get_ciri3_strand_map(ciri3_file: Path):
             if candidate in reader.fieldnames:
                 strand_col = candidate
                 break
+        for candidate in ("gene_id", "gene", "gene_name"):
+            if candidate in reader.fieldnames:
+                gene_col = candidate
+                break
 
-        if id_col is None or strand_col is None:
-            return strand_map
+        if id_col is None:
+            return strand_map, gene_map
 
         for row in reader:
             cid = (row.get(id_col) or "").strip()
-            strand = (row.get(strand_col) or "").strip()
-            if cid and strand in {"+", "-"} and cid not in strand_map:
-                strand_map[cid] = strand
+            if not cid:
+                continue
+            if strand_col is not None:
+                strand = (row.get(strand_col) or "").strip()
+                if strand in {"+", "-"} and cid not in strand_map:
+                    strand_map[cid] = strand
+            if gene_col is not None:
+                gene_id = (row.get(gene_col) or "").strip()
+                if gene_id and cid not in gene_map:
+                    gene_map[cid] = gene_id
 
-    return strand_map
+    return strand_map, gene_map
 
 
 def read_bsj_counts(bsj_file: Path):
@@ -105,7 +118,7 @@ def extract_site_sequences(fasta: pysam.FastaFile, chrom: str, pos_1based: int, 
     return fasta.fetch(chrom, start0, end0).upper()
 
 
-strand_map = get_ciri3_strand_map(ciri3_merged_path)
+strand_map, gene_map = get_ciri3_strand_map(ciri3_merged_path)
 bsj_weights = read_bsj_counts(bsj_matrix_path)
 
 site_rows = []
@@ -121,6 +134,7 @@ with pysam.FastaFile(str(fasta_path)) as fa:
             continue
 
         strand = strand_map.get(circ_id, "+")
+        gene_id = gene_map.get(circ_id, "NA")
         donor_seq = extract_site_sequences(fa, chrom, bsj_start, flank)
         acceptor_seq = extract_site_sequences(fa, chrom, bsj_end, flank)
 
@@ -135,6 +149,7 @@ with pysam.FastaFile(str(fasta_path)) as fa:
                 "bsj_start": bsj_start,
                 "bsj_end": bsj_end,
                 "strand": strand,
+                "gene_id": gene_id,
                 "weight": f"{weight:.6g}",
                 "donor_window_seq": donor_seq,
                 "acceptor_window_seq": acceptor_seq,
@@ -149,6 +164,7 @@ with site_out.open("w", newline="") as fh:
         "bsj_start",
         "bsj_end",
         "strand",
+        "gene_id",
         "weight",
         "donor_window_seq",
         "acceptor_window_seq",
@@ -162,7 +178,7 @@ with site_fasta_out.open("w") as fh:
     for row in site_rows:
         prefix = (
             f"{row['circRNA_ID']}|{row['chrom']}:{row['bsj_start']}-{row['bsj_end']}"
-            f"|strand={row['strand']}|weight={row['weight']}"
+            f"|strand={row['strand']}|gene_id={row['gene_id']}|weight={row['weight']}"
         )
         fh.write(f">{prefix}|site=donor\n{row['donor_window_seq']}\n")
         fh.write(f">{prefix}|site=acceptor\n{row['acceptor_window_seq']}\n")

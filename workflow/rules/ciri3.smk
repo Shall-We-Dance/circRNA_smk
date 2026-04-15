@@ -32,9 +32,9 @@ rule ciri3_detect_star:
         gtf=config["reference"]["gtf"],
         bai=f"{OUTDIR}/star/{{sample}}/{{sample}}.Aligned.sortedByCoord.out.bam.bai"
     output:
-        result=f"{OUTDIR}/ciri3/star/{{sample}}.ciri3",
-        bsj=f"{OUTDIR}/ciri3/star/{{sample}}.ciri3.BSJ_Matrix",
-        fsj=f"{OUTDIR}/ciri3/star/{{sample}}.ciri3.FSJ_Matrix"
+        result=f"{OUTDIR}/ciri3/per_sample/{{sample}}.ciri3",
+        bsj=f"{OUTDIR}/ciri3/per_sample/{{sample}}.ciri3.BSJ_Matrix",
+        fsj=f"{OUTDIR}/ciri3/per_sample/{{sample}}.ciri3.FSJ_Matrix"
     log:
         "logs/ciri3/{sample}.detect.star.log"
     threads: int(config["threads"].get("samtools_view", config["threads"].get("samtools", 1)))
@@ -84,9 +84,9 @@ rule ciri3_detect_star:
 
 rule merge_ciri3_outputs:
     input:
-        ciri3=expand(f"{OUTDIR}/ciri3/star/{{sample}}.ciri3", sample=SAMPLES),
-        bsj=expand(f"{OUTDIR}/ciri3/star/{{sample}}.ciri3.BSJ_Matrix", sample=SAMPLES),
-        fsj=expand(f"{OUTDIR}/ciri3/star/{{sample}}.ciri3.FSJ_Matrix", sample=SAMPLES)
+        ciri3=expand(f"{OUTDIR}/ciri3/per_sample/{{sample}}.ciri3", sample=SAMPLES),
+        bsj=expand(f"{OUTDIR}/ciri3/per_sample/{{sample}}.ciri3.BSJ_Matrix", sample=SAMPLES),
+        fsj=expand(f"{OUTDIR}/ciri3/per_sample/{{sample}}.ciri3.FSJ_Matrix", sample=SAMPLES)
     output:
         ciri3=f"{OUTDIR}/ciri3/all_samples.ciri3",
         bsj=f"{OUTDIR}/ciri3/all_samples.ciri3.BSJ_Matrix",

@@ -5,8 +5,8 @@ OUTDIR = config["output"]["dir"]
 
 rule prepare_bsj_motif_inputs:
     input:
-        bsj=f"{OUTDIR}/ciri3/star/{{sample}}.ciri3.BSJ_Matrix",
-        ciri3=f"{OUTDIR}/ciri3/star/{{sample}}.ciri3",
+        bsj=f"{OUTDIR}/ciri3/per_sample/{{sample}}.ciri3.BSJ_Matrix",
+        ciri3=f"{OUTDIR}/ciri3/per_sample/{{sample}}.ciri3",
         fasta=config["reference"]["fasta"]
     output:
         site_table=f"{OUTDIR}/motif/{{sample}}/bsj_sites.tsv",
