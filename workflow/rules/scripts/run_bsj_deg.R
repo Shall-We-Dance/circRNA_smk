@@ -277,7 +277,7 @@ plot_volcano_labeled <- function(res_df, title, out_file, alpha = 0.05, lfc_thre
   ggsave(out_file, p, width = 7, height = 5)
 }
 
-plot_heatmap <- function(vst_values, sig_ids, feature_labels, out_file, title, top_n = 50) {
+plot_heatmap <- function(vst_values, sig_ids, feature_labels, out_file, title, col_groups, top_n = 50) {
   dir.create(dirname(out_file), recursive = TRUE, showWarnings = FALSE)
   if (length(sig_ids) < 2) {
     pdf(out_file, width = 8, height = 6)
@@ -287,14 +287,25 @@ plot_heatmap <- function(vst_values, sig_ids, feature_labels, out_file, title, t
     return()
   }
   keep_ids <- sig_ids[seq_len(min(length(sig_ids), top_n))]
-  mat <- vst_values[keep_ids, , drop = FALSE]
+  sample_ids <- intersect(names(col_groups), colnames(vst_values))
+  if (length(sample_ids) == 0) {
+    stop("No overlapping samples between heatmap matrix and group annotations.")
+  }
+  sample_order <- sample_ids[order(col_groups[sample_ids], sample_ids)]
+  mat <- vst_values[keep_ids, sample_order, drop = FALSE]
   row_labels <- feature_labels[keep_ids]
   row_labels[is.na(row_labels) | row_labels == ""] <- keep_ids[is.na(row_labels) | row_labels == ""]
   row_labels <- make.unique(row_labels, sep = "_")
+  annotation_col <- data.frame(
+    group = factor(col_groups[sample_order], levels = unique(col_groups[sample_order])),
+    row.names = sample_order,
+    stringsAsFactors = FALSE
+  )
   pheatmap(
     mat,
     cluster_rows = TRUE,
-    cluster_cols = TRUE,
+    cluster_cols = FALSE,
+    annotation_col = annotation_col,
     labels_row = row_labels,
     show_rownames = TRUE,
     fontsize_col = 9,
@@ -404,15 +415,18 @@ for (pair in pairwise) {
     sig$circRNA,
     feature_labels,
     pair_heatmap[[pair_name]],
-    paste0("Top significant BSJs: ", g1, " vs ", g2)
+    paste0("Top significant BSJs: ", g1, " vs ", g2),
+    setNames(as.character(pair_design$group), pair_design$sample)
   )
 
   pca_obj <- prcomp(t(pair_vst), center = TRUE, scale. = FALSE)
+  pca_samples <- rownames(pca_obj$x)
+  pca_groups <- as.character(pair_design[pca_samples, "group"])
   pca_df <- data.frame(
-    sample = rownames(pca_obj$x),
+    sample = pca_samples,
     PC1 = pca_obj$x[, 1],
     PC2 = pca_obj$x[, 2],
-    group = pair_design$group[rownames(pca_obj$x)],
+    group = pca_groups,
     stringsAsFactors = FALSE
   )
   ve <- pca_obj$sdev^2 / sum(pca_obj$sdev^2)
@@ -437,7 +451,8 @@ if (nrow(pairwise_sig_rank) > 0) {
     min_padj$circRNA,
     feature_label_all,
     snakemake@output[["all_heatmap"]],
-    "Top significant BSJs (union of pairwise DEGs)"
+    "Top significant BSJs (union of pairwise DEGs)",
+    setNames(as.character(design$group), design$sample)
   )
 } else {
   plot_heatmap(
@@ -445,7 +460,8 @@ if (nrow(pairwise_sig_rank) > 0) {
     character(0),
     feature_label_all,
     snakemake@output[["all_heatmap"]],
-    "Top significant BSJs (union of pairwise DEGs)"
+    "Top significant BSJs (union of pairwise DEGs)",
+    setNames(as.character(design$group), design$sample)
   )
 }
 
