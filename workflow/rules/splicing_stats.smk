@@ -6,7 +6,8 @@ rule compute_splicing_site_stats:
     input:
         ciri3=f"{OUTDIR}/ciri3/per_sample/{{sample}}.ciri3",
         bsj=f"{OUTDIR}/ciri3/per_sample/{{sample}}.ciri3.BSJ_Matrix",
-        fsj=f"{OUTDIR}/ciri3/per_sample/{{sample}}.ciri3.FSJ_Matrix"
+        fsj=f"{OUTDIR}/ciri3/per_sample/{{sample}}.ciri3.FSJ_Matrix",
+        fasta=config["reference"]["fasta"]
     output:
         circ_table=f"{OUTDIR}/splicing/{{sample}}/circ_splice_sites.tsv",
         summary=f"{OUTDIR}/splicing/{{sample}}/summary.tsv",

@@ -31,9 +31,12 @@ This repository provides a reproducible Snakemake workflow for analyzing circula
   - `results/splicing/all_samples_summary.tsv`
   - `results/splicing/all_samples_distributions.tsv`
   - `results/splicing/all_samples_overview.png`
-  - `results/motif/bsj_sites.tsv`
-  - `results/motif/bsj_motif_summary.tsv` (copied from HOMER `knownResults.txt`)
-  - `results/motif/homer/` (full HOMER output directory)
+  - `results/motif/<sample>/bsj_sites.tsv`
+  - `results/motif/<sample>/bsj_motif_summary.tsv` (copied from HOMER `knownResults.txt`)
+  - `results/motif/<sample>/homer/` (full HOMER output directory)
+  - `results/motif/all_samples_site_stats.tsv`
+  - `results/motif/all_samples_known_motif_summary.tsv`
+  - `results/motif/all_samples_overview.png`
 - **BSJ differential expression (optional, DESeq2)**
   - `results/deg/bsj/sample_metadata.tsv`
   - `results/deg/bsj/all_groups/deseq2_results.tsv`
@@ -75,13 +78,16 @@ To minimize storage footprint, intermediate FASTQs produced by fastp and merged 
    - visualization outputs for each analysis (pairwise volcano plots, heatmaps with gene labels, PCA).
 
 7. **Splicing-site feature statistics (enabled by default)**  
-   The workflow computes per-sample circRNA splicing-site feature tables using each sample's CIRI3 BSJ/FSJ matrices. It reports BSJ/FSJ counts, BSJ-vs-FSJ ratio, BSJ span, and binned distributions with per-sample plots, then merges all samples into unified summary/distribution tables and an overview figure.
+   The workflow computes per-sample circRNA splicing-site feature tables using each sample's CIRI3 BSJ/FSJ matrices plus the reference genome FASTA. It reports BSJ/FSJ counts, BSJ-vs-FSJ ratio, BSJ span, and splice-site dinucleotide classes (canonical `GU-AG`, semi-canonical `GC-AG`, minor `AU-AC`, non-canonical, unknown), with per-sample distribution plots, then merges all samples into unified summary/distribution tables and an overview figure.
 
 8. **BSJ motif analysis (optional, enabled by default)**  
-   The workflow first exports BSJ donor/acceptor sequence windows from `all_samples.ciri3.BSJ_Matrix` into `bsj_sites.tsv` and `bsj_sites.fa`, then runs HOMER `findMotifs.pl` on the FASTA. It outputs:
-   - `results/motif/bsj_sites.tsv` (per-BSJ sequence windows),
-   - `results/motif/bsj_motif_summary.tsv` (copied from HOMER `knownResults.txt`),
-   - `results/motif/homer/` (full HOMER result directory, including de novo and known motif reports).
+   The workflow exports BSJ donor/acceptor sequence windows for each sample into `results/motif/<sample>/bsj_sites.tsv` and `results/motif/<sample>/bsj_sites.fa`, then runs HOMER `findMotifs.pl` per sample. It also performs all-sample motif summary statistics/plots. Outputs include:
+   - `results/motif/<sample>/bsj_sites.tsv` (per-BSJ sequence windows),
+   - `results/motif/<sample>/bsj_motif_summary.tsv` (copied from HOMER `knownResults.txt`),
+   - `results/motif/<sample>/homer/` (full HOMER result directory),
+   - `results/motif/all_samples_site_stats.tsv`,
+   - `results/motif/all_samples_known_motif_summary.tsv`,
+   - `results/motif/all_samples_overview.png`.
 
 ## Requirements
 

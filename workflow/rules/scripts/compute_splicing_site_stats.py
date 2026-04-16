@@ -4,6 +4,7 @@ import re
 from pathlib import Path
 
 import matplotlib
+import pysam
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -12,12 +13,20 @@ import matplotlib.pyplot as plt
 ciri3_path = Path(snakemake.input.ciri3)
 bsj_path = Path(snakemake.input.bsj)
 fsj_path = Path(snakemake.input.fsj)
+fasta_path = Path(snakemake.input.fasta)
 sample = snakemake.wildcards.sample
 
 circ_table_out = Path(snakemake.output.circ_table)
 summary_out = Path(snakemake.output.summary)
 dist_out = Path(snakemake.output.dist)
 plot_out = Path(snakemake.output.plot)
+
+
+_comp = str.maketrans("ACGTNacgtn", "TGCANtgcan")
+
+
+def revcomp(seq: str):
+    return seq.translate(_comp)[::-1]
 
 
 def parse_circ_id(circ_id: str):
@@ -104,6 +113,47 @@ def value_bin(v, edges):
     return f">={edges[-1]}"
 
 
+def fetch_2nt(fa: pysam.FastaFile, chrom: str, pos_1based: int):
+    start0 = max(0, pos_1based - 1)
+    end0 = start0 + 2
+    return fa.fetch(chrom, start0, end0).upper()
+
+
+def splice_dinuc(fa: pysam.FastaFile, chrom: str, start: int, end: int, strand: str):
+    try:
+        if strand == "-":
+            donor = revcomp(fetch_2nt(fa, chrom, end - 1))
+            acceptor = revcomp(fetch_2nt(fa, chrom, start))
+        else:
+            donor = fetch_2nt(fa, chrom, start)
+            acceptor = fetch_2nt(fa, chrom, end - 1)
+    except Exception:
+        return "NN", "NN"
+
+    if len(donor) != 2:
+        donor = "NN"
+    if len(acceptor) != 2:
+        acceptor = "NN"
+    return donor, acceptor
+
+
+def splice_class(donor: str, acceptor: str):
+    pair = f"{donor}-{acceptor}"
+    if pair == "GT-AG":
+        return "canonical_GU-AG"
+    if pair == "GC-AG":
+        return "semi_canonical_GC-AG"
+    if pair == "AT-AC":
+        return "minor_canonical_AU-AC"
+    if "N" in donor or "N" in acceptor:
+        return "unknown"
+    return "non_canonical"
+
+
+def dna_to_rna(seq: str):
+    return seq.replace("T", "U")
+
+
 bsj_edges = [0, 1, 2, 5, 10, 20, 50]
 fsj_edges = [0, 1, 2, 5, 10, 20, 50]
 ratio_edges = [0, 0.25, 0.5, 1, 2, 5, 10]
@@ -116,34 +166,44 @@ strand_map = load_ciri3_meta(ciri3_path)
 all_ids = sorted(set(bsj_values) | set(fsj_values))
 
 rows = []
-for circ_id in all_ids:
-    parsed = parse_circ_id(circ_id)
-    if parsed is None:
-        continue
-    chrom, start, end = parsed
-    span = end - start + 1
-    bsj = bsj_values.get(circ_id, 0.0)
-    fsj = fsj_values.get(circ_id, 0.0)
-    ratio = (bsj + 1.0) / (fsj + 1.0)
-    rows.append(
-        {
-            "sample": sample,
-            "circRNA_ID": circ_id,
-            "chrom": chrom,
-            "bsj_start": start,
-            "bsj_end": end,
-            "circ_span": span,
-            "strand": strand_map.get(circ_id, "."),
-            "bsj_count": f"{bsj:.6g}",
-            "fsj_count": f"{fsj:.6g}",
-            "bsj_fsj_ratio": f"{ratio:.6g}",
-            "log2_bsj_fsj_ratio": f"{math.log2(ratio):.6g}",
-            "bsj_bin": value_bin(bsj, bsj_edges),
-            "fsj_bin": value_bin(fsj, fsj_edges),
-            "ratio_bin": value_bin(ratio, ratio_edges),
-            "span_bin": value_bin(span, span_edges),
-        }
-    )
+with pysam.FastaFile(str(fasta_path)) as fa:
+    for circ_id in all_ids:
+        parsed = parse_circ_id(circ_id)
+        if parsed is None:
+            continue
+        chrom, start, end = parsed
+        span = end - start + 1
+        bsj = bsj_values.get(circ_id, 0.0)
+        fsj = fsj_values.get(circ_id, 0.0)
+        ratio = (bsj + 1.0) / (fsj + 1.0)
+        strand = strand_map.get(circ_id, ".")
+        donor, acceptor = splice_dinuc(fa, chrom, start, end, strand)
+        pair_dna = f"{donor}-{acceptor}"
+        pair_rna = f"{dna_to_rna(donor)}-{dna_to_rna(acceptor)}"
+        rows.append(
+            {
+                "sample": sample,
+                "circRNA_ID": circ_id,
+                "chrom": chrom,
+                "bsj_start": start,
+                "bsj_end": end,
+                "circ_span": span,
+                "strand": strand,
+                "bsj_count": f"{bsj:.6g}",
+                "fsj_count": f"{fsj:.6g}",
+                "bsj_fsj_ratio": f"{ratio:.6g}",
+                "log2_bsj_fsj_ratio": f"{math.log2(ratio):.6g}",
+                "donor_dinuc_dna": donor,
+                "acceptor_dinuc_dna": acceptor,
+                "splice_site_pair_dna": pair_dna,
+                "splice_site_pair_rna": pair_rna,
+                "splice_site_class": splice_class(donor, acceptor),
+                "bsj_bin": value_bin(bsj, bsj_edges),
+                "fsj_bin": value_bin(fsj, fsj_edges),
+                "ratio_bin": value_bin(ratio, ratio_edges),
+                "span_bin": value_bin(span, span_edges),
+            }
+        )
 
 circ_table_out.parent.mkdir(parents=True, exist_ok=True)
 with circ_table_out.open("w", newline="") as fh:
@@ -159,6 +219,11 @@ with circ_table_out.open("w", newline="") as fh:
         "fsj_count",
         "bsj_fsj_ratio",
         "log2_bsj_fsj_ratio",
+        "donor_dinuc_dna",
+        "acceptor_dinuc_dna",
+        "splice_site_pair_dna",
+        "splice_site_pair_rna",
+        "splice_site_class",
         "bsj_bin",
         "fsj_bin",
         "ratio_bin",
@@ -177,6 +242,8 @@ span_list = [int(r["circ_span"]) for r in rows]
 if rows:
     strand_plus = sum(1 for r in rows if r["strand"] == "+")
     strand_minus = sum(1 for r in rows if r["strand"] == "-")
+    canonical = sum(1 for r in rows if r["splice_site_class"] == "canonical_GU-AG")
+    non_canonical = sum(1 for r in rows if r["splice_site_class"] == "non_canonical")
     metrics.extend(
         [
             ("sample", sample),
@@ -189,6 +256,8 @@ if rows:
             ("median_span", sorted(span_list)[len(span_list) // 2]),
             ("strand_plus_fraction", strand_plus / len(rows)),
             ("strand_minus_fraction", strand_minus / len(rows)),
+            ("canonical_GU_AG_fraction", canonical / len(rows)),
+            ("non_canonical_fraction", non_canonical / len(rows)),
         ]
     )
 else:
@@ -204,6 +273,8 @@ else:
             ("median_span", 0),
             ("strand_plus_fraction", 0),
             ("strand_minus_fraction", 0),
+            ("canonical_GU_AG_fraction", 0),
+            ("non_canonical_fraction", 0),
         ]
     )
 
@@ -226,12 +297,23 @@ bsj_bins = [f"[{bsj_edges[i]},{bsj_edges[i+1]})" for i in range(len(bsj_edges) -
 fsj_bins = [f"[{fsj_edges[i]},{fsj_edges[i+1]})" for i in range(len(fsj_edges) - 1)] + [f">={fsj_edges[-1]}"]
 ratio_bins = [f"[{ratio_edges[i]},{ratio_edges[i+1]})" for i in range(len(ratio_edges) - 1)] + [f">={ratio_edges[-1]}"]
 span_bins = [f"[{span_edges[i]},{span_edges[i+1]})" for i in range(len(span_edges) - 1)] + [f">={span_edges[-1]}"]
+splice_class_bins = [
+    "canonical_GU-AG",
+    "semi_canonical_GC-AG",
+    "minor_canonical_AU-AC",
+    "non_canonical",
+    "unknown",
+]
+
+pair_bins = sorted({r["splice_site_pair_rna"] for r in rows})
 
 bin_specs = [
     ("bsj_count", "bsj_bin", bsj_bins),
     ("fsj_count", "fsj_bin", fsj_bins),
     ("bsj_fsj_ratio", "ratio_bin", ratio_bins),
     ("circ_span", "span_bin", span_bins),
+    ("splice_site_class", "splice_site_class", splice_class_bins),
+    ("splice_site_pair_rna", "splice_site_pair_rna", pair_bins),
 ]
 
 with dist_out.open("w", newline="") as fh:
@@ -244,7 +326,7 @@ with dist_out.open("w", newline="") as fh:
             count = counts.get(b, 0)
             writer.writerow([sample, feature, b, count, count / denom])
 
-fig, axes = plt.subplots(2, 2, figsize=(12, 8))
+fig, axes = plt.subplots(2, 3, figsize=(16, 8.5))
 for ax, (feature, col, ordered) in zip(axes.flatten(), bin_specs):
     counts = count_bins(col, ordered)
     xs = list(range(len(ordered)))
