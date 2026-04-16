@@ -77,6 +77,7 @@ include: "rules/align_star.smk"
 include: "rules/featurecount.smk"
 include: "rules/ciri3.smk"
 include: "rules/motif.smk"
+include: "rules/splicing_stats.smk"
 include: "rules/deg.smk"
 
 rule all:
@@ -97,6 +98,13 @@ rule all:
         f"{OUTDIR}/ciri3/all_samples.ciri3",
         f"{OUTDIR}/ciri3/all_samples.ciri3.BSJ_Matrix",
         f"{OUTDIR}/ciri3/all_samples.ciri3.FSJ_Matrix",
+        *expand(f"{OUTDIR}/splicing/{{sample}}/circ_splice_sites.tsv", sample=SAMPLES),
+        *expand(f"{OUTDIR}/splicing/{{sample}}/summary.tsv", sample=SAMPLES),
+        *expand(f"{OUTDIR}/splicing/{{sample}}/distributions.tsv", sample=SAMPLES),
+        *expand(f"{OUTDIR}/splicing/{{sample}}/distribution.png", sample=SAMPLES),
+        f"{OUTDIR}/splicing/all_samples_summary.tsv",
+        f"{OUTDIR}/splicing/all_samples_distributions.tsv",
+        f"{OUTDIR}/splicing/all_samples_overview.png",
         *(
             [
                 *expand(f"{OUTDIR}/motif/{{sample}}/bsj_sites.tsv", sample=SAMPLES),

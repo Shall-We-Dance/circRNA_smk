@@ -8,6 +8,7 @@ threads:
   featurecounts: 8        # featureCounts -T
   faidx: 2                # samtools faidx (reference index)
   homer: 8                # findMotifs.pl -p
+  splicing_stats: 2       # per-sample and merged splicing-site summaries
 
 reference:
   # STAR genome index folder (must be prebuilt, e.g. contains SA file)
