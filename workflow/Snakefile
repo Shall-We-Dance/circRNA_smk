@@ -115,6 +115,9 @@ rule all:
                     f"{OUTDIR}/motif/{{sample}}/homer/knownResults.txt",
                     sample=SAMPLES,
                 ),
+                f"{OUTDIR}/motif/all_samples_site_stats.tsv",
+                f"{OUTDIR}/motif/all_samples_known_motif_summary.tsv",
+                f"{OUTDIR}/motif/all_samples_overview.png",
             ]
             if MOTIF_ENABLED
             else []

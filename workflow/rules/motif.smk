@@ -1,6 +1,7 @@
 # workflow/rules/motif.smk
 
 OUTDIR = config["output"]["dir"]
+SAMPLES = list(config["samples"].keys())
 
 
 rule prepare_bsj_motif_inputs:
@@ -57,3 +58,19 @@ rule run_homer_bsj_motif:
           exit 1
         fi
         """
+
+
+rule summarize_motif_stats:
+    input:
+        site_tables=expand(f"{OUTDIR}/motif/{{sample}}/bsj_sites.tsv", sample=SAMPLES),
+        known_results=expand(f"{OUTDIR}/motif/{{sample}}/homer/knownResults.txt", sample=SAMPLES)
+    output:
+        site_stats=f"{OUTDIR}/motif/all_samples_site_stats.tsv",
+        known_merged=f"{OUTDIR}/motif/all_samples_known_motif_summary.tsv",
+        plot=f"{OUTDIR}/motif/all_samples_overview.png"
+    params:
+        samples=SAMPLES
+    conda:
+        "envs/motif.yaml"
+    script:
+        "scripts/summarize_motif_stats.py"
