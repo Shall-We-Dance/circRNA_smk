@@ -235,6 +235,48 @@ plot_volcano <- function(res_df, title, out_file, alpha = 0.05, lfc_threshold = 
   ggsave(out_file, p, width = 7, height = 5)
 }
 
+plot_volcano_labeled <- function(res_df, title, out_file, alpha = 0.05, lfc_threshold = 1, label_n = 15) {
+  dir.create(dirname(out_file), recursive = TRUE, showWarnings = FALSE)
+  res_df$padj[is.na(res_df$padj)] <- 1
+  res_df$log2FoldChange[is.na(res_df$log2FoldChange)] <- 0
+  res_df$reg_direction <- "Not_significant"
+  res_df$reg_direction[res_df$padj < alpha & res_df$log2FoldChange >= lfc_threshold] <- "Up"
+  res_df$reg_direction[res_df$padj < alpha & res_df$log2FoldChange <= -lfc_threshold] <- "Down"
+  res_df$minus_log10_padj <- -log10(pmax(res_df$padj, .Machine$double.xmin))
+  res_df$gene_label <- ifelse(
+    is.na(res_df$gene_id) | res_df$gene_id == "",
+    res_df$circRNA,
+    res_df$gene_id
+  )
+  sig_df <- res_df[res_df$reg_direction != "Not_significant", , drop = FALSE]
+  sig_df <- sig_df[order(sig_df$padj, -abs(sig_df$log2FoldChange)), , drop = FALSE]
+  if (nrow(sig_df) > label_n) {
+    sig_df <- sig_df[seq_len(label_n), , drop = FALSE]
+  }
+
+  p <- ggplot(res_df, aes(x = log2FoldChange, y = minus_log10_padj, color = reg_direction)) +
+    geom_point(alpha = 0.6, size = 1.2) +
+    geom_text(
+      data = sig_df,
+      aes(label = gene_label),
+      size = 2.8,
+      check_overlap = TRUE,
+      vjust = -0.3,
+      show.legend = FALSE
+    ) +
+    scale_color_manual(values = c("Up" = "#d7301f", "Down" = "#2c7fb8", "Not_significant" = "grey70")) +
+    geom_vline(xintercept = c(-lfc_threshold, lfc_threshold), linetype = "dashed", color = "grey60", linewidth = 0.3) +
+    geom_hline(yintercept = -log10(alpha), linetype = "dashed", color = "grey60", linewidth = 0.3) +
+    theme_minimal(base_size = 11) +
+    labs(
+      title = title,
+      x = "log2 Fold Change",
+      y = "-log10 adjusted p-value",
+      color = paste0("padj < ", alpha, "\n& |log2FC| >= ", lfc_threshold)
+    )
+  ggsave(out_file, p, width = 7, height = 5)
+}
+
 plot_heatmap <- function(vst_values, sig_ids, feature_labels, out_file, title, top_n = 50) {
   dir.create(dirname(out_file), recursive = TRUE, showWarnings = FALSE)
   if (length(sig_ids) < 2) {
@@ -257,6 +299,7 @@ plot_heatmap <- function(vst_values, sig_ids, feature_labels, out_file, title, t
     show_rownames = TRUE,
     fontsize_col = 9,
     main = title,
+    color = colorRampPalette(c("#3b4cc0", "white", "#b40426"))(100),
     filename = out_file,
     width = 8,
     height = 10
@@ -279,8 +322,6 @@ res_all_df$regulation <- ifelse(
 dir.create(dirname(snakemake@output[["all_results"]]), recursive = TRUE, showWarnings = FALSE)
 write.table(res_all_df, file = snakemake@output[["all_results"]], sep = "\t", quote = FALSE, row.names = FALSE)
 
-sig_all <- res_all_df[which(!is.na(res_all_df$padj) & res_all_df$padj < padj_cutoff & abs(res_all_df$log2FoldChange) >= lfc_cutoff), ]
-sig_all <- sig_all[order(sig_all$padj, -abs(sig_all$log2FoldChange)), ]
 feature_label_all <- setNames(
   ifelse(
     is.na(res_all_df$gene_id) | res_all_df$gene_id == "",
@@ -288,13 +329,6 @@ feature_label_all <- setNames(
     paste0(res_all_df$gene_id, " (", res_all_df$circRNA, ")")
   ),
   res_all_df$circRNA
-)
-plot_heatmap(
-  vst_mat,
-  sig_all$circRNA,
-  feature_label_all,
-  snakemake@output[["all_heatmap"]],
-  "Top significant BSJs (all groups)"
 )
 
 pdf(snakemake@output[["pca"]], width = 7, height = 5)
@@ -311,7 +345,10 @@ pairwise_outputs <- function(output_paths, suffix) {
 
 pair_results <- pairwise_outputs(unlist(snakemake@output[["pairwise_results"]]), "deseq2_results.tsv")
 pair_volcano <- pairwise_outputs(unlist(snakemake@output[["pairwise_volcano"]]), "volcano.pdf")
+pair_volcano_labeled <- pairwise_outputs(unlist(snakemake@output[["pairwise_volcano_labeled"]]), "volcano_labeled.pdf")
 pair_heatmap <- pairwise_outputs(unlist(snakemake@output[["pairwise_heatmap"]]), "heatmap_top50.pdf")
+pair_pca <- pairwise_outputs(unlist(snakemake@output[["pairwise_pca"]]), "pca.pdf")
+pairwise_sig_rank <- data.frame(circRNA = character(0), padj = numeric(0), stringsAsFactors = FALSE)
 
 for (pair in pairwise) {
   g1 <- pair[[1]]
@@ -339,9 +376,21 @@ for (pair in pairwise) {
     alpha = padj_cutoff,
     lfc_threshold = lfc_cutoff
   )
+  plot_volcano_labeled(
+    res_df,
+    paste0("BSJ DEG (labeled): ", g2, " vs ", g1),
+    pair_volcano_labeled[[pair_name]],
+    alpha = padj_cutoff,
+    lfc_threshold = lfc_cutoff
+  )
   sig <- res_df[which(!is.na(res_df$padj) & res_df$padj < padj_cutoff & abs(res_df$log2FoldChange) >= lfc_cutoff), ]
   sig <- sig[order(sig$padj, -abs(sig$log2FoldChange)), ]
+  if (nrow(sig) > 0) {
+    pairwise_sig_rank <- rbind(pairwise_sig_rank, sig[, c("circRNA", "padj"), drop = FALSE])
+  }
   pair_samples <- design$sample[design$group %in% c(g1, g2)]
+  pair_vst <- vst_mat[, pair_samples, drop = FALSE]
+  pair_design <- design[pair_samples, , drop = FALSE]
   feature_labels <- setNames(
     ifelse(
       is.na(res_df$gene_id) | res_df$gene_id == "",
@@ -351,11 +400,52 @@ for (pair in pairwise) {
     res_df$circRNA
   )
   plot_heatmap(
-    vst_mat[, pair_samples, drop = FALSE],
+    pair_vst,
     sig$circRNA,
     feature_labels,
     pair_heatmap[[pair_name]],
     paste0("Top significant BSJs: ", g1, " vs ", g2)
+  )
+
+  pca_obj <- prcomp(t(pair_vst), center = TRUE, scale. = FALSE)
+  pca_df <- data.frame(
+    sample = rownames(pca_obj$x),
+    PC1 = pca_obj$x[, 1],
+    PC2 = pca_obj$x[, 2],
+    group = pair_design$group[rownames(pca_obj$x)],
+    stringsAsFactors = FALSE
+  )
+  ve <- pca_obj$sdev^2 / sum(pca_obj$sdev^2)
+  pp <- ggplot(pca_df, aes(x = PC1, y = PC2, color = group, label = sample)) +
+    geom_point(size = 3, alpha = 0.9) +
+    geom_text(vjust = -0.5, size = 3, show.legend = FALSE) +
+    theme_minimal(base_size = 11) +
+    labs(
+      title = paste0("Pairwise PCA: ", g1, " vs ", g2),
+      x = sprintf("PC1 (%.1f%%)", ve[1] * 100),
+      y = sprintf("PC2 (%.1f%%)", ve[2] * 100),
+      color = "Group"
+    )
+  ggsave(pair_pca[[pair_name]], pp, width = 7, height = 5)
+}
+
+if (nrow(pairwise_sig_rank) > 0) {
+  min_padj <- aggregate(padj ~ circRNA, data = pairwise_sig_rank, FUN = min)
+  min_padj <- min_padj[order(min_padj$padj), , drop = FALSE]
+  plot_heatmap(
+    vst_mat,
+    min_padj$circRNA,
+    feature_label_all,
+    snakemake@output[["all_heatmap"]],
+    "Top significant BSJs (union of pairwise DEGs)"
+  )
+} else {
+  plot_heatmap(
+    vst_mat,
+    character(0),
+    feature_label_all,
+    snakemake@output[["all_heatmap"]],
+    "Top significant BSJs (union of pairwise DEGs)"
   )
 }
 
