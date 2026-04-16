@@ -24,6 +24,13 @@ This repository provides a reproducible Snakemake workflow for analyzing circula
   - `results/ciri3/all_samples.ciri3`
   - `results/ciri3/all_samples.ciri3.BSJ_Matrix`
   - `results/ciri3/all_samples.ciri3.FSJ_Matrix`
+  - `results/splicing/<sample>/circ_splice_sites.tsv`
+  - `results/splicing/<sample>/summary.tsv`
+  - `results/splicing/<sample>/distributions.tsv`
+  - `results/splicing/<sample>/distribution.png`
+  - `results/splicing/all_samples_summary.tsv`
+  - `results/splicing/all_samples_distributions.tsv`
+  - `results/splicing/all_samples_overview.png`
   - `results/motif/bsj_sites.tsv`
   - `results/motif/bsj_motif_summary.tsv` (copied from HOMER `knownResults.txt`)
   - `results/motif/homer/` (full HOMER output directory)
@@ -67,7 +74,10 @@ To minimize storage footprint, intermediate FASTQs produced by fastp and merged 
    - all pairwise group comparisons (reported as `GroupB vs GroupA`; positive log2FC means higher in `GroupB`),
    - visualization outputs for each analysis (pairwise volcano plots, heatmaps with gene labels, PCA).
 
-7. **BSJ motif analysis (optional, enabled by default)**  
+7. **Splicing-site feature statistics (enabled by default)**  
+   The workflow computes per-sample circRNA splicing-site feature tables using each sample's CIRI3 BSJ/FSJ matrices. It reports BSJ/FSJ counts, BSJ-vs-FSJ ratio, BSJ span, and binned distributions with per-sample plots, then merges all samples into unified summary/distribution tables and an overview figure.
+
+8. **BSJ motif analysis (optional, enabled by default)**  
    The workflow first exports BSJ donor/acceptor sequence windows from `all_samples.ciri3.BSJ_Matrix` into `bsj_sites.tsv` and `bsj_sites.fa`, then runs HOMER `findMotifs.pl` on the FASTA. It outputs:
    - `results/motif/bsj_sites.tsv` (per-BSJ sequence windows),
    - `results/motif/bsj_motif_summary.tsv` (copied from HOMER `knownResults.txt`),
@@ -113,7 +123,7 @@ Key fields:
 * `reference.bwa_indexed_fasta`: BWA-indexed FASTA path (BWA sidecar files must already exist with this path as prefix)
 * `reference.gtf`: reference annotation GTF
 * `samples`: mapping of sample name to lists of FASTQs for R1 and R2
-* `threads`: module-level CPU thread settings (configure each module independently; e.g., `threads.homer` for HOMER, `threads.samtools_view` for CIRI3 SAM conversion)
+* `threads`: module-level CPU thread settings (configure each module independently; e.g., `threads.homer` for HOMER, `threads.samtools_view` for CIRI3 SAM conversion, `threads.splicing_stats` for splicing summary scripts)
 * `output.keep_bam`: keep STAR/BWA BAM files (`false` by default to save disk)
 * `deg.enabled`: run optional BSJ-level DE analysis (`false` by default)
 * `deg.groups`: group-to-sample mapping for DESeq2 analysis
