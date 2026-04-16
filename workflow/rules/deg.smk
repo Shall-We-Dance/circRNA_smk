@@ -19,8 +19,16 @@ rule bsj_deg_analysis:
             f"{OUTDIR}/deg/bsj/pairwise/{{pair}}/volcano.pdf",
             pair=[f"{a}_vs_{b}" for a, b in DEG_PAIRWISE],
         ),
+        pairwise_volcano_labeled=expand(
+            f"{OUTDIR}/deg/bsj/pairwise/{{pair}}/volcano_labeled.pdf",
+            pair=[f"{a}_vs_{b}" for a, b in DEG_PAIRWISE],
+        ),
         pairwise_heatmap=expand(
             f"{OUTDIR}/deg/bsj/pairwise/{{pair}}/heatmap_top50.pdf",
+            pair=[f"{a}_vs_{b}" for a, b in DEG_PAIRWISE],
+        ),
+        pairwise_pca=expand(
+            f"{OUTDIR}/deg/bsj/pairwise/{{pair}}/pca.pdf",
             pair=[f"{a}_vs_{b}" for a, b in DEG_PAIRWISE],
         )
     params:
