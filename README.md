@@ -104,6 +104,7 @@ To minimize storage footprint, intermediate FASTQs produced by fastp and merged 
 - fastp
 - MultiQC
 - CIRI3 (download from https://github.com/gyjames/CIRI3 ; this workflow uses the Java 18 build)
+- CIRI3 companion executable `rMATSexe` (required by CIRI3 `DE_Relative`)
 - Python packages: `pysam`
 - HOMER (`findMotifs.pl`)
 
@@ -202,6 +203,7 @@ Notes:
 * BWA index construction is **not** performed in this workflow; provide prebuilt index files for `reference.bwa_indexed_fasta`.
   Example:
   `bwa index /path/to/genome.fa`
+* CIRI3 `DE_Relative` internally invokes `rMATSexe`. If you see `Cannot run program ".../scripts/rMATSexe": No such file or directory`, install or link `rMATSexe` at the path expected by your CIRI3 Java build.
 
 ## Running the workflow
 
