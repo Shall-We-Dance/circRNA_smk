@@ -1,5 +1,5 @@
-from pathlib import Path
 import csv
+from pathlib import Path
 
 pair = snakemake.params.pair
 group_a = snakemake.params.group_a
@@ -64,6 +64,20 @@ gene_counts = Path(snakemake.input.gene_counts)
 gene_expr_out = Path(snakemake.output.gene_expression)
 gene_expr_out.parent.mkdir(parents=True, exist_ok=True)
 
+def normalize_featurecounts_colname(name: str) -> str:
+    """
+    featureCounts sample columns are often full BAM paths:
+      results/star/<sample>/<sample>.Aligned.sortedByCoord.out.bam
+    Normalize those to <sample> so they can match config sample names.
+    """
+    p = Path(name)
+    base = p.name
+    suffix = ".Aligned.sortedByCoord.out.bam"
+    if base.endswith(suffix):
+        return base[: -len(suffix)]
+    return base
+
+
 with gene_counts.open() as in_fh, gene_expr_out.open("w", newline="") as out_fh:
     reader = csv.reader((line for line in in_fh if not line.startswith("#")), delimiter="\t")
     writer = csv.writer(out_fh, delimiter="\t")
@@ -73,7 +87,14 @@ with gene_counts.open() as in_fh, gene_expr_out.open("w", newline="") as out_fh:
         raise ValueError(f"FeatureCounts matrix is empty: {gene_counts}")
 
     col_idx = {name: idx for idx, name in enumerate(header)}
-    missing_gene = [s for s in selected_samples if s not in col_idx]
+    normalized_idx = {}
+    for idx, col_name in enumerate(header):
+        norm = normalize_featurecounts_colname(col_name)
+        # keep first match if duplicates appear after normalization
+        if norm not in normalized_idx:
+            normalized_idx[norm] = idx
+
+    missing_gene = [s for s in selected_samples if s not in col_idx and s not in normalized_idx]
     if missing_gene:
         raise ValueError(f"Missing selected samples in featureCounts header: {missing_gene}")
 
@@ -84,5 +105,8 @@ with gene_counts.open() as in_fh, gene_expr_out.open("w", newline="") as out_fh:
         if not row:
             continue
         geneid = row[geneid_idx]
-        values = [row[col_idx[s]] if col_idx[s] < len(row) else "0" for s in selected_samples]
+        values = []
+        for sample in selected_samples:
+            sample_idx = col_idx.get(sample, normalized_idx.get(sample))
+            values.append(row[sample_idx] if sample_idx is not None and sample_idx < len(row) else "0")
         writer.writerow([geneid] + values)
