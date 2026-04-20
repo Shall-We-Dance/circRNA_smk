@@ -50,6 +50,7 @@ rule ciri3_detect_star:
         mkdir -p $(dirname {output.result}) $(dirname {log})
         tmpdir=$(mktemp -d "$(dirname {output.result})/ciri3_{wildcards.sample}.XXXXXX")
         trap 'rm -rf "$tmpdir"' EXIT
+
         star_sam="$tmpdir/{wildcards.sample}.Aligned.sortedByCoord.out.sam"
         bwa_sam="$tmpdir/{wildcards.sample}.bwa.sam"
         samples_tsv="$tmpdir/samples_{wildcards.sample}.tsv"
@@ -71,10 +72,41 @@ rule ciri3_detect_star:
           -F {input.fasta} \
           > {log} 2>&1
 
-        # CIRI3 naming differs across releases; normalize to expected targets.
-        if [ ! -e {output.result} ] && [ -e {output.result}.ciri3 ]; then cp {output.result}.ciri3 {output.result}; fi
-        if [ ! -e {output.bsj} ] && [ -e {output.result}.ciri3.BSJ_Matrix ]; then cp {output.result}.ciri3.BSJ_Matrix {output.bsj}; fi
-        if [ ! -e {output.fsj} ] && [ -e {output.result}.ciri3.FSJ_Matrix ]; then cp {output.result}.ciri3.FSJ_Matrix {output.fsj}; fi
+        # Normalize possible alternative output names from different CIRI3 releases
+        if [ ! -e {output.result} ] && [ -e {output.result}.ciri3 ]; then
+            cp {output.result}.ciri3 {output.result}
+        fi
+
+        if [ ! -e {output.bsj} ] && [ -e {output.result}.ciri3.BSJ_Matrix ]; then
+            cp {output.result}.ciri3.BSJ_Matrix {output.bsj}
+        fi
+
+        if [ ! -e {output.fsj} ] && [ -e {output.result}.ciri3.FSJ_Matrix ]; then
+            cp {output.result}.ciri3.FSJ_Matrix {output.fsj}
+        fi
+
+        python - <<'PY'
+from pathlib import Path
+
+sample = "{wildcards.sample}"
+
+for path_str in ["{output.bsj}", "{output.fsj}"]:
+    path = Path(path_str)
+
+    if not path.exists():
+        raise RuntimeError("Expected output file not found: " + str(path))
+
+    lines = path.read_text().splitlines()
+    if not lines:
+        raise RuntimeError("Empty file: " + str(path))
+
+    header = lines[0].split("\t")
+    if len(header) >= 2:
+        header[1] = sample
+        lines[0] = "\t".join(header)
+
+    path.write_text("\n".join(lines) + "\n")
+PY
 
         test -s {output.result}
         test -s {output.bsj}

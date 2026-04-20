@@ -6,14 +6,14 @@ import pysam
 
 
 bsj_matrix_path = Path(snakemake.input.bsj)
-ciri3_merged_path = Path(snakemake.input.ciri3)
+ciri3_path = Path(snakemake.input.ciri3)
 fasta_path = Path(snakemake.input.fasta)
 
 site_out = Path(snakemake.output.site_table)
 site_fasta_out = Path(snakemake.output.site_fasta)
 
-flank = int(snakemake.params.get("flank", 30))
-weight_mode = str(snakemake.params.get("weight_mode", "sum")).strip().lower()
+flank = int(snakemake.params.flank)
+weight_mode = str(snakemake.params.weight_mode).strip().lower()
 
 if flank < 1:
     raise ValueError("motif.flank must be >= 1")
@@ -41,6 +41,7 @@ def parse_bsj_id(circ_id: str):
 def get_ciri3_strand_map(ciri3_file: Path):
     strand_map = {}
     gene_map = {}
+
     with ciri3_file.open() as fh:
         reader = csv.DictReader(fh, delimiter="\t")
         if reader.fieldnames is None:
@@ -49,14 +50,17 @@ def get_ciri3_strand_map(ciri3_file: Path):
         id_col = None
         strand_col = None
         gene_col = None
+
         for candidate in ("circRNA_ID", "circRNA", "circ_id", "junction"):
             if candidate in reader.fieldnames:
                 id_col = candidate
                 break
+
         for candidate in ("strand", "Strand", "bsj_strand"):
             if candidate in reader.fieldnames:
                 strand_col = candidate
                 break
+
         for candidate in ("gene_id", "gene", "gene_name"):
             if candidate in reader.fieldnames:
                 gene_col = candidate
@@ -69,10 +73,12 @@ def get_ciri3_strand_map(ciri3_file: Path):
             cid = (row.get(id_col) or "").strip()
             if not cid:
                 continue
+
             if strand_col is not None:
                 strand = (row.get(strand_col) or "").strip()
                 if strand in {"+", "-"} and cid not in strand_map:
                     strand_map[cid] = strand
+
             if gene_col is not None:
                 gene_id = (row.get(gene_col) or "").strip()
                 if gene_id and cid not in gene_map:
@@ -83,9 +89,11 @@ def get_ciri3_strand_map(ciri3_file: Path):
 
 def read_bsj_counts(bsj_file: Path):
     bsj_weight = {}
+
     with bsj_file.open() as fh:
         reader = csv.reader(fh, delimiter="\t")
         header = next(reader, None)
+
         if header is None:
             raise ValueError("BSJ matrix is empty")
         if len(header) < 2:
@@ -94,21 +102,25 @@ def read_bsj_counts(bsj_file: Path):
         for row in reader:
             if not row:
                 continue
+
             circ_id = row[0].strip()
             if not circ_id:
                 continue
+
             values = []
             for val in row[1:]:
                 try:
                     values.append(float(val))
                 except (TypeError, ValueError):
                     values.append(0.0)
+
             if weight_mode == "none":
                 bsj_weight[circ_id] = 1.0
             elif weight_mode == "mean":
                 bsj_weight[circ_id] = sum(values) / max(len(values), 1)
             else:
                 bsj_weight[circ_id] = sum(values)
+
     return bsj_weight
 
 
@@ -118,7 +130,7 @@ def extract_site_sequences(fasta: pysam.FastaFile, chrom: str, pos_1based: int, 
     return fasta.fetch(chrom, start0, end0).upper()
 
 
-strand_map, gene_map = get_ciri3_strand_map(ciri3_merged_path)
+strand_map, gene_map = get_ciri3_strand_map(ciri3_path)
 bsj_weights = read_bsj_counts(bsj_matrix_path)
 
 site_rows = []
@@ -135,6 +147,7 @@ with pysam.FastaFile(str(fasta_path)) as fa:
 
         strand = strand_map.get(circ_id, "+")
         gene_id = gene_map.get(circ_id, "NA")
+
         donor_seq = extract_site_sequences(fa, chrom, bsj_start, flank)
         acceptor_seq = extract_site_sequences(fa, chrom, bsj_end, flank)
 

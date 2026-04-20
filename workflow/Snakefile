@@ -32,6 +32,19 @@ DEG_MIN_SAMPLES_DETECTED = int(deg_cfg.get("min_samples_detected", 2))
 DEG_PADJ_CUTOFF = float(deg_cfg.get("padj_cutoff", 0.05))
 DEG_LFC_CUTOFF = float(deg_cfg.get("lfc_cutoff", 1.0))
 
+ciri3_de_cfg = config.get("ciri3_de", {})
+CIRI3_DE_ENABLED = _as_bool(ciri3_de_cfg.get("enabled", False), default=False)
+CIRI3_DE_RUN_BSJ = _as_bool(ciri3_de_cfg.get("run_de_bsj", True), default=True)
+CIRI3_DE_RUN_RATIO = _as_bool(ciri3_de_cfg.get("run_de_ratio", True), default=True)
+CIRI3_DE_RUN_RELATIVE = _as_bool(ciri3_de_cfg.get("run_de_relative", True), default=True)
+CIRI3_DE_OUTDIR = ciri3_de_cfg.get("outdir", f"{OUTDIR}/deg/ciri3")
+CIRI3_DE_USE_FEATURECOUNTS = _as_bool(
+    ciri3_de_cfg.get("gene_expression_from_featurecounts", True),
+    default=True
+)
+CIRI3_DE_COMPARISONS = ciri3_de_cfg.get("comparisons", {})
+CIRI3_DE_COMPARISON_NAMES = sorted(CIRI3_DE_COMPARISONS.keys())
+
 motif_cfg = config.get("motif", {})
 MOTIF_ENABLED = _as_bool(motif_cfg.get("enabled", True), default=True)
 
@@ -72,6 +85,40 @@ if DEG_ENABLED:
             + ", ".join(sorted(duplicated))
         )
 
+if CIRI3_DE_ENABLED:
+    if not CIRI3_DE_COMPARISON_NAMES:
+        raise ValueError("ciri3_de is enabled, but no comparisons are configured.")
+
+    for comp_name, comp in CIRI3_DE_COMPARISONS.items():
+        if "case" not in comp or "control" not in comp:
+            raise ValueError(
+                f"ciri3_de comparison '{comp_name}' must define both 'case' and 'control'."
+            )
+
+        case_samples = list(comp.get("case", []))
+        control_samples = list(comp.get("control", []))
+
+        if len(case_samples) == 0 or len(control_samples) == 0:
+            raise ValueError(
+                f"ciri3_de comparison '{comp_name}' must have at least one case and one control sample."
+            )
+
+        unknown = sorted(
+            [s for s in case_samples + control_samples if s not in SAMPLES]
+        )
+        if unknown:
+            raise ValueError(
+                f"ciri3_de comparison '{comp_name}' includes unknown samples: "
+                + ", ".join(unknown)
+            )
+
+        overlap = sorted(set(case_samples) & set(control_samples))
+        if overlap:
+            raise ValueError(
+                f"ciri3_de comparison '{comp_name}' has samples in both case and control: "
+                + ", ".join(overlap)
+            )
+
 include: "rules/qc_fastp.smk"
 include: "rules/align_star.smk"
 include: "rules/featurecount.smk"
@@ -98,6 +145,8 @@ rule all:
         f"{OUTDIR}/ciri3/all_samples.ciri3",
         f"{OUTDIR}/ciri3/all_samples.ciri3.BSJ_Matrix",
         f"{OUTDIR}/ciri3/all_samples.ciri3.FSJ_Matrix",
+
+        # splicing summaries
         *expand(f"{OUTDIR}/splicing/{{sample}}/circ_splice_sites.tsv", sample=SAMPLES),
         *expand(f"{OUTDIR}/splicing/{{sample}}/summary.tsv", sample=SAMPLES),
         *expand(f"{OUTDIR}/splicing/{{sample}}/distributions.tsv", sample=SAMPLES),
@@ -105,11 +154,14 @@ rule all:
         f"{OUTDIR}/splicing/all_samples_summary.tsv",
         f"{OUTDIR}/splicing/all_samples_distributions.tsv",
         f"{OUTDIR}/splicing/all_samples_overview.png",
+
+        # motif outputs
         *(
             [
                 *expand(f"{OUTDIR}/motif/{{sample}}/bsj_sites.tsv", sample=SAMPLES),
                 *expand(
-                    f"{OUTDIR}/motif/{{sample}}/bsj_motif_summary.tsv", sample=SAMPLES
+                    f"{OUTDIR}/motif/{{sample}}/bsj_motif_summary.tsv",
+                    sample=SAMPLES,
                 ),
                 *expand(
                     f"{OUTDIR}/motif/{{sample}}/homer/knownResults.txt",
@@ -126,7 +178,7 @@ rule all:
         # summary QC
         f"{OUTDIR}/qc/multiqc/multiqc_report.html",
 
-        # BSJ differential expression
+        # custom BSJ differential expression (DESeq2)
         *(
             [
                 f"{OUTDIR}/deg/bsj/sample_metadata.tsv",
@@ -165,5 +217,35 @@ rule all:
                 f"{OUTDIR}/deg/ciri3/de_relative/all_samples/result.txt",
             ]
             if DEG_ENABLED
+            else []
+        ),
+
+        # native CIRI3 differential expression
+        *(
+            (
+                [
+                    f"{CIRI3_DE_OUTDIR}/{comparison}/de_bsj/result.txt"
+                    for comparison in CIRI3_DE_COMPARISON_NAMES
+                ]
+                if CIRI3_DE_RUN_BSJ
+                else []
+            )
+            + (
+                [
+                    f"{CIRI3_DE_OUTDIR}/{comparison}/de_ratio/result.txt"
+                    for comparison in CIRI3_DE_COMPARISON_NAMES
+                ]
+                if CIRI3_DE_RUN_RATIO
+                else []
+            )
+            + (
+                [
+                    f"{CIRI3_DE_OUTDIR}/{comparison}/de_relative/result.txt"
+                    for comparison in CIRI3_DE_COMPARISON_NAMES
+                ]
+                if CIRI3_DE_RUN_RELATIVE
+                else []
+            )
+            if CIRI3_DE_ENABLED
             else []
         )

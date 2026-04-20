@@ -1,89 +1,185 @@
 threads:
-  merge_fastq: 2          # merge lane FASTQ files by sample
-  fastp: 8                # fastp --thread
-  star: 16                # STAR --runThreadN
-  bwa: 16                 # bwa mem -t (for CIRI3 remap)
-  samtools_index: 8       # samtools index -@
-  samtools_view: 8        # samtools view -@ (CIRI3 prep)
-  featurecounts: 8        # featureCounts -T
-  faidx: 2                # samtools faidx (reference index)
-  homer: 8                # findMotifs.pl -p
-  splicing_stats: 2       # per-sample and merged splicing-site summaries
+  merge_fastq: 2
+  fastp: 8
+  star: 16
+  bwa: 16
+  samtools_index: 8
+  samtools_view: 8
+  featurecounts: 8
+  faidx: 2
+  homer: 8
+  splicing_stats: 2
 
 reference:
-  # STAR genome index folder (must be prebuilt, e.g. contains SA file)
-  star_index: "resources/genomeIndex/refGen"
-  # Example: GCF_002204515.2.fa
-  fasta: "resources/genomeIndex/GCF_002204515.2.fa"
-  # FASTA path used as BWA index prefix. Must already have:
-  # <bwa_indexed_fasta>.amb/.ann/.bwt/.pac/.sa
-  bwa_indexed_fasta: "resources/genomeIndex/GCF_002204515.2.fa"
-  # Example: GCF_002204515.2_AaegL5.0.ncbiRefSeq.gtf
-  gtf: "resources/genomeIndex/GCF_002204515.2_AaegL5.0.ncbiRefSeq.gtf"
+  star_index: "/projects/cell-surface/circRNA/genomeIndex/refGen_folder"
+  fasta: "/projects/cell-surface/circRNA/genomeIndex/GCF_002204515.2.fa"
+  bwa_indexed_fasta: "/projects/cell-surface/circRNA/genomeIndex/GCF_002204515.2.fa"
+  gtf: "/projects/cell-surface/circRNA/genomeIndex/GCF_002204515.2_AaegL5.0.ncbiRefSeq.gtf"
 
 samples:
-  sampleA:
+  "Mock_R1":
     R1:
-      - "raw/sampleA_L001_R1.fastq.gz"
-      - "raw/sampleA_L002_R1.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134199_1.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134200_1.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134201_1.fastq.gz"
     R2:
-      - "raw/sampleA_L001_R2.fastq.gz"
-      - "raw/sampleA_L002_R2.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134199_2.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134200_2.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134201_2.fastq.gz"
 
-  sampleB:
+  "Mock_R2":
     R1:
-      - "raw/sampleB_R1.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134202_1.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134203_1.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134204_1.fastq.gz"
     R2:
-      - "raw/sampleB_R2.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134202_2.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134203_2.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134204_2.fastq.gz"
+
+  "Mock_R3":
+    R1:
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134205_1.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134206_1.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134207_1.fastq.gz"
+    R2:
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134205_2.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134206_2.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134207_2.fastq.gz"
+
+  "WT_ZIKV_R1":
+    R1:
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134208_1.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134209_1.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134210_1.fastq.gz"
+    R2:
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134208_2.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134209_2.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134210_2.fastq.gz"
+
+  "WT_ZIKV_R2":
+    R1:
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134211_1.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134212_1.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134213_1.fastq.gz"
+    R2:
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134211_2.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134212_2.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134213_2.fastq.gz"
+
+  "WT_ZIKV_R3":
+    R1:
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134214_1.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134215_1.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134216_1.fastq.gz"
+    R2:
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134214_2.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134215_2.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134216_2.fastq.gz"
+
+  "xrRNA2_ZIKV_R1":
+    R1:
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134217_1.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134218_1.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134219_1.fastq.gz"
+    R2:
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134217_2.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134218_2.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134219_2.fastq.gz"
+
+  "xrRNA2_ZIKV_R2":
+    R1:
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134220_1.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134221_1.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134222_1.fastq.gz"
+    R2:
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134220_2.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134221_2.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134222_2.fastq.gz"
+
+  "xrRNA2_ZIKV_R3":
+    R1:
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134223_1.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134224_1.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134225_1.fastq.gz"
+    R2:
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134223_2.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134224_2.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134225_2.fastq.gz"
 
 fastp:
-  # dedup + adapter trimming
   dedup_adapter:
     dedup: true
 
 ciri3:
-  # local CIRI3 jar path
-  jar: "/path/to/CIRI3_v1.0.1.jar"
-  # CIRI3 main parameters
+  jar: "/projects/cell-surface/CIRI3/CIRI3_Java_18.0.1.jar"
   Ma: 1
   W: 1
 
 motif:
-  # run BSJ-centered motif analysis with HOMER based on all_samples.ciri3.BSJ_Matrix
   enabled: true
-  # sequence window size on each side of BSJ donor/acceptor site
   flank: 30
-  # how to weight each BSJ when aggregating site-level support for sequence export: sum | mean | none
   weight_mode: "sum"
-  # motif lengths for HOMER findMotifs.pl, comma-separated
   homer_len: "8,10,12"
 
 output:
   dir: "results"
-  # keep STAR/BWA BAM files after pipeline finishes
   keep_bam: false
 
 deg:
-  # run BSJ differential analysis with DESeq2
   enabled: false
-  # minimum BSJ count across selected samples
   min_total_count: 10
-  # minimum number of selected samples with BSJ count > 0
   min_samples_detected: 2
-  # significance thresholds used for labels and volcano highlighting
   padj_cutoff: 0.05
   lfc_cutoff: 1.0
-  # group name -> sample names (must exist in "samples")
   groups:
-    GroupA:
-      - sampleA_rep1
-      - sampleA_rep2
-      - sampleA_rep3
-    GroupB:
-      - sampleB_rep1
-      - sampleB_rep2
-      - sampleB_rep3
-    GroupC:
-      - sampleC_rep1
-      - sampleC_rep2
-      - sampleC_rep3
+    "Mock":
+      - "Mock_R1"
+      - "Mock_R2"
+      - "Mock_R3"
+    "WT_ZIKV":
+      - "WT_ZIKV_R1"
+      - "WT_ZIKV_R2"
+      - "WT_ZIKV_R3"
+    "xrRNA2_ZIKV":
+      - "xrRNA2_ZIKV_R1"
+      - "xrRNA2_ZIKV_R2"
+      - "xrRNA2_ZIKV_R3"
+
+ciri3_de:
+  enabled: true
+  run_de_bsj: true
+  run_de_ratio: true
+  run_de_relative: true
+  outdir: "results/deg/ciri3"
+  gene_expression_from_featurecounts: true
+  comparisons:
+    "WT_ZIKV_vs_Mock":
+      case:
+        - "WT_ZIKV_R1"
+        - "WT_ZIKV_R2"
+        - "WT_ZIKV_R3"
+      control:
+        - "Mock_R1"
+        - "Mock_R2"
+        - "Mock_R3"
+
+    "xrRNA2_ZIKV_vs_WT_ZIKV":
+      case:
+        - "xrRNA2_ZIKV_R1"
+        - "xrRNA2_ZIKV_R2"
+        - "xrRNA2_ZIKV_R3"
+      control:
+        - "WT_ZIKV_R1"
+        - "WT_ZIKV_R2"
+        - "WT_ZIKV_R3"
+
+    "xrRNA2_ZIKV_vs_Mock":
+      case:
+        - "xrRNA2_ZIKV_R1"
+        - "xrRNA2_ZIKV_R2"
+        - "xrRNA2_ZIKV_R3"
+      control:
+        - "Mock_R1"
+        - "Mock_R2"
+        - "Mock_R3"
