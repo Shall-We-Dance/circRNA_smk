@@ -3,6 +3,13 @@ import os
 import re
 
 OUTDIR = config["output"]["dir"]
+SAMPLES = list(config["samples"].keys())
+
+PAIRWISE_NAMES = [f"{a}_vs_{b}" for a, b in DEG_PAIRWISE]
+PAIRWISE_TO_GROUPS = {
+    f"{a}_vs_{b}": (a, b)
+    for a, b in DEG_PAIRWISE
+}
 
 
 def ciri3_de_case_samples(comparison):
