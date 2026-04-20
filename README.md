@@ -37,7 +37,7 @@ This repository provides a reproducible Snakemake workflow for analyzing circula
   - `results/motif/all_samples_site_stats.tsv`
   - `results/motif/all_samples_known_motif_summary.tsv`
   - `results/motif/all_samples_overview.png`
-- **BSJ differential expression (optional, DESeq2)**
+- **BSJ differential expression (optional, DESeq2 + CIRI3 DE modules)**
   - `results/deg/bsj/sample_metadata.tsv`
   - `results/deg/bsj/all_groups/deseq2_results.tsv`
   - `results/deg/bsj/all_groups/heatmap_top50.pdf`
@@ -46,6 +46,12 @@ This repository provides a reproducible Snakemake workflow for analyzing circula
   - `results/deg/bsj/pairwise/<GroupA>_vs_<GroupB>/deseq2_results.tsv`
   - `results/deg/bsj/pairwise/<GroupA>_vs_<GroupB>/volcano.pdf`
   - `results/deg/bsj/pairwise/<GroupA>_vs_<GroupB>/heatmap_top50.pdf`
+  - `results/deg/ciri3/de_bsj/pairwise/<GroupA>_vs_<GroupB>/result.txt`
+  - `results/deg/ciri3/de_bsj/all_samples/result.txt`
+  - `results/deg/ciri3/de_ratio/pairwise/<GroupA>_vs_<GroupB>/result.txt`
+  - `results/deg/ciri3/de_ratio/all_samples/result.txt`
+  - `results/deg/ciri3/de_relative/pairwise/<GroupA>_vs_<GroupB>/result.txt`
+  - `results/deg/ciri3/de_relative/all_samples/result.txt`
 ### Intermediate file handling
 To minimize storage footprint, intermediate FASTQs produced by fastp and merged FASTQs are marked as temporary and are removed automatically by Snakemake. In addition, STAR/BWA BAM files are temporary by default (`output.keep_bam: false`) and will be removed after downstream rules finish. Set `output.keep_bam: true` if you want to retain BAM/BAI files. Final deliverables include:
 - QC reports (fastp + multiqc)
@@ -70,12 +76,12 @@ To minimize storage footprint, intermediate FASTQs produced by fastp and merged 
    Gene-level quantification is generated with featureCounts and circular RNA detection is run with CIRI3. The workflow writes per-sample CIRI3 outputs first, then merges all samples into `all_samples.ciri3`, `all_samples.ciri3.BSJ_Matrix`, and `all_samples.ciri3.FSJ_Matrix` with sample names as matrix column names.
 
 6. **BSJ differential expression (optional)**  
-   When `deg.enabled: true`, the pipeline uses `all_samples.ciri3.BSJ_Matrix` as count input and performs:
-   - parsing BSJ identifiers (`seqname:start|end`) into genomic coordinate columns,
-   - configurable low-abundance filtering before DESeq2 (`deg.min_total_count`, `deg.min_samples_detected`),
-   - a full multi-group DESeq2 model (`design = ~ group`) to obtain overall BSJ DEG signals,
-   - all pairwise group comparisons (reported as `GroupB vs GroupA`; positive log2FC means higher in `GroupB`),
-   - visualization outputs for each analysis (pairwise volcano plots, heatmaps with gene labels, PCA).
+   When `deg.enabled: true`, the pipeline runs both DESeq2 and CIRI3 differential modules using configured groups:
+   - DESeq2 BSJ differential analysis from `all_samples.ciri3.BSJ_Matrix` (overall + pairwise with volcano/heatmap/PCA plots),
+   - CIRI3 `DE_BSJ` pairwise analysis (with per-pair `infor.tsv`, BSJ matrix subset, and featureCounts-derived gene expression matrix),
+   - CIRI3 `DE_Ratio` pairwise analysis (with per-pair `infor.tsv`, BSJ subset, and FSJ subset),
+   - CIRI3 `DE_Relative` pairwise analysis (with per-pair `infor.tsv` built from sample CIRI3 result paths),
+   - merged `all_samples/result.txt` in each CIRI3 DEG folder by concatenating pairwise outputs and adding a `comparison` column.
 
 7. **Splicing-site feature statistics (enabled by default)**  
    The workflow computes per-sample circRNA splicing-site feature tables using each sample's CIRI3 BSJ/FSJ matrices plus the reference genome FASTA. It reports BSJ/FSJ counts, BSJ-vs-FSJ ratio, BSJ span, and splice-site dinucleotide classes (canonical `GU-AG`, semi-canonical `GC-AG`, minor `AU-AC`, non-canonical, unknown), with per-sample distribution plots, then merges all samples into unified summary/distribution tables and an overview figure.
@@ -132,7 +138,7 @@ Key fields:
 * `threads`: module-level CPU thread settings (configure each module independently; e.g., `threads.homer` for HOMER, `threads.samtools_view` for CIRI3 SAM conversion, `threads.splicing_stats` for splicing summary scripts)
 * `output.keep_bam`: keep STAR/BWA BAM files (`false` by default to save disk)
 * `deg.enabled`: run optional BSJ-level DE analysis (`false` by default)
-* `deg.groups`: group-to-sample mapping for DESeq2 analysis
+* `deg.groups`: group-to-sample mapping for DESeq2 + CIRI3 pairwise DEG analysis
 * `deg.min_total_count`: minimum total BSJ count across selected samples (default `10`)
 * `deg.min_samples_detected`: minimum number of samples with BSJ count > 0 (default `2`)
 * `deg.padj_cutoff`: adjusted p-value threshold used for significance labels/plots (default `0.05`)
