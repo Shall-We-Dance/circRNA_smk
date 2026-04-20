@@ -51,8 +51,7 @@ rule run_homer_bsj_motif:
         elif [ -s {output.homer_dir}/homerMotifs.all.motifs ]; then
           printf "# HOMER completed, but knownResults.txt is missing.\n" > {output.known_results}
           printf "# Please inspect: %s\n" "{output.homer_dir}/homerMotifs.all.motifs" >> {output.known_results}
-          printf "# HOMER completed, but knownResults.txt is missing.\n" > {output.motif_summary}
-          printf "# Please inspect: %s\n" "{output.homer_dir}/homerMotifs.all.motifs" >> {output.motif_summary}
+          cp {output.known_results} {output.motif_summary}
         else
           echo "HOMER did not generate expected result files." >&2
           exit 1

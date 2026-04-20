@@ -1,4 +1,5 @@
 import csv
+import re
 from collections import defaultdict
 from pathlib import Path
 
@@ -17,6 +18,54 @@ known_out = Path(snakemake.output.known_merged)
 plot_out = Path(snakemake.output.plot)
 
 
+def get_pair(seq):
+    donor = (seq.get("donor_window_seq") or "NN")[:2].upper().replace("T", "U")
+    acceptor = (seq.get("acceptor_window_seq") or "NN")[-2:].upper().replace("T", "U")
+    return f"{donor}-{acceptor}"
+
+
+def normalize_homer_row(row):
+    """
+    HOMER sometimes writes dynamic column names like:
+      # of Target Sequences with Motif(of 2758)
+      # of Background Sequences with Motif(of 12390)
+
+    Normalize those into stable column names so rows from different samples
+    can be merged safely.
+    """
+    new_row = {}
+
+    for key, value in row.items():
+        if key is None:
+            continue
+
+        key = key.strip()
+
+        m_target = re.match(r"^# of Target Sequences with Motif\(of (\d+)\)$", key)
+        if m_target:
+            new_row["Target_sequences_with_motif"] = value
+            new_row["Target_sequences_total"] = m_target.group(1)
+            continue
+
+        m_bg = re.match(r"^# of Background Sequences with Motif\(of (\d+)\)$", key)
+        if m_bg:
+            new_row["Background_sequences_with_motif"] = value
+            new_row["Background_sequences_total"] = m_bg.group(1)
+            continue
+
+        if key == "# of Target Sequences with Motif":
+            new_row["Target_sequences_with_motif"] = value
+            continue
+
+        if key == "# of Background Sequences with Motif":
+            new_row["Background_sequences_with_motif"] = value
+            continue
+
+        new_row[key] = value
+
+    return new_row
+
+
 sample_rows = {}
 for sample, path in zip(samples, site_files):
     rows = []
@@ -25,12 +74,6 @@ for sample, path in zip(samples, site_files):
         for row in reader:
             rows.append(row)
     sample_rows[sample] = rows
-
-
-def get_pair(seq):
-    donor = (seq.get("donor_window_seq") or "NN")[:2].upper().replace("T", "U")
-    acceptor = (seq.get("acceptor_window_seq") or "NN")[-2:].upper().replace("T", "U")
-    return f"{donor}-{acceptor}"
 
 
 metrics = []
@@ -45,21 +88,26 @@ for sample in samples:
     total_weight = 0.0
     guag_w = 0.0
     pair_weight = defaultdict(float)
+
     for row in rows:
         try:
             w = float(row.get("weight", 1.0))
-        except ValueError:
+        except (ValueError, TypeError):
             w = 1.0
+
         total_weight += w
         pair = get_pair(row)
         pair_weight[pair] += w
+
         donor, acceptor = pair.split("-")
         all_donor[donor] += w
         all_acceptor[acceptor] += w
+
         if pair == "GU-AG":
             guag_w += w
 
     denom = total_weight if total_weight > 0 else 1.0
+
     metrics.extend(
         [
             {"sample": sample, "metric": "n_bsj_sites", "value": n_sites},
@@ -76,37 +124,69 @@ for sample in samples:
         pair_fraction[sample][pair] = w / denom
         all_pairs.add(pair)
 
+
 site_stats_out.parent.mkdir(parents=True, exist_ok=True)
 with site_stats_out.open("w", newline="") as fh:
     writer = csv.DictWriter(fh, fieldnames=["sample", "metric", "value"], delimiter="\t")
     writer.writeheader()
     writer.writerows(metrics)
 
+
 known_rows = []
+all_known_fields = {"sample"}
+
 for sample, path in zip(samples, known_files):
     with path.open() as fh:
         reader = csv.reader(fh, delimiter="\t")
         header = None
+
         for row in reader:
             if not row:
                 continue
             if row[0].startswith("#"):
                 continue
+
             if header is None:
                 header = row
                 continue
-            rec = {"sample": sample}
-            for k, v in zip(header, row):
-                rec[k] = v
+
+            rec = {k: v for k, v in zip(header, row)}
+            rec = normalize_homer_row(rec)
+            rec["sample"] = sample
+
             known_rows.append(rec)
+            all_known_fields.update(rec.keys())
 
-known_fields = ["sample"]
-if known_rows:
-    extras = list(known_rows[0].keys())
-    known_fields = ["sample"] + [x for x in extras if x != "sample"]
 
+preferred_known_fields = [
+    "sample",
+    "Motif Name",
+    "Consensus",
+    "P-value",
+    "Log P-value",
+    "log P-value",
+    "q-value (Benjamini)",
+    "# Target Sequences",
+    "% of Target Sequences",
+    "Target_sequences_with_motif",
+    "Target_sequences_total",
+    "# Background Sequences",
+    "% of Background Sequences",
+    "Background_sequences_with_motif",
+    "Background_sequences_total",
+]
+
+known_fields = [f for f in preferred_known_fields if f in all_known_fields]
+known_fields += sorted(all_known_fields - set(known_fields))
+
+known_out.parent.mkdir(parents=True, exist_ok=True)
 with known_out.open("w", newline="") as fh:
-    writer = csv.DictWriter(fh, fieldnames=known_fields, delimiter="\t")
+    writer = csv.DictWriter(
+        fh,
+        fieldnames=known_fields,
+        delimiter="\t",
+        extrasaction="ignore",
+    )
     writer.writeheader()
     for row in known_rows:
         writer.writerow(row)
@@ -151,6 +231,7 @@ for color, pair in zip(colors, pair_bins):
     vals = [pair_fraction[s].get(pair, 0.0) for s in samples]
     axes[2].bar(xs, vals, bottom=bottom, color=color, label=pair)
     bottom = [x + y for x, y in zip(bottom, vals)]
+
 axes[2].set_xticks(xs)
 axes[2].set_xticklabels(samples, rotation=45, ha="right")
 axes[2].set_ylabel("fraction")

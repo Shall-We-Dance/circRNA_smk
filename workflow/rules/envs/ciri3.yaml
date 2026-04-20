@@ -4,3 +4,6 @@ dependencies:
   - openjdk=17
   - subread
   - samtools
+  - r-base
+  - bioconductor-edger
+  - bioconductor-limma
