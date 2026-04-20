@@ -11,108 +11,108 @@ threads:
   splicing_stats: 2
 
 reference:
-  star_index: "/projects/cell-surface/circRNA/genomeIndex/refGen_folder"
-  fasta: "/projects/cell-surface/circRNA/genomeIndex/GCF_002204515.2.fa"
-  bwa_indexed_fasta: "/projects/cell-surface/circRNA/genomeIndex/GCF_002204515.2.fa"
-  gtf: "/projects/cell-surface/circRNA/genomeIndex/GCF_002204515.2_AaegL5.0.ncbiRefSeq.gtf"
+  star_index: "/path/to/reference/star_index"
+  fasta: "/path/to/reference/genome.fa"
+  bwa_indexed_fasta: "/path/to/reference/genome.fa"
+  gtf: "/path/to/reference/annotation.gtf"
 
 samples:
-  "Mock_R1":
+  "sample_A":
     R1:
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134199_1.fastq.gz"
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134200_1.fastq.gz"
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134201_1.fastq.gz"
+      - "/path/to/fastq/sample_a_rep1_r1.fastq.gz"
+      - "/path/to/fastq/sample_a_rep2_r1.fastq.gz"
+      - "/path/to/fastq/sample_a_rep3_r1.fastq.gz"
     R2:
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134199_2.fastq.gz"
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134200_2.fastq.gz"
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134201_2.fastq.gz"
+      - "/path/to/fastq/sample_a_rep1_r2.fastq.gz"
+      - "/path/to/fastq/sample_a_rep2_r2.fastq.gz"
+      - "/path/to/fastq/sample_a_rep3_r2.fastq.gz"
 
-  "Mock_R2":
+  "sample_B":
     R1:
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134202_1.fastq.gz"
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134203_1.fastq.gz"
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134204_1.fastq.gz"
+      - "/path/to/fastq/sample_b_rep1_r1.fastq.gz"
+      - "/path/to/fastq/sample_b_rep2_r1.fastq.gz"
+      - "/path/to/fastq/sample_b_rep3_r1.fastq.gz"
     R2:
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134202_2.fastq.gz"
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134203_2.fastq.gz"
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134204_2.fastq.gz"
+      - "/path/to/fastq/sample_b_rep1_r2.fastq.gz"
+      - "/path/to/fastq/sample_b_rep2_r2.fastq.gz"
+      - "/path/to/fastq/sample_b_rep3_r2.fastq.gz"
 
-  "Mock_R3":
+  "sample_C":
     R1:
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134205_1.fastq.gz"
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134206_1.fastq.gz"
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134207_1.fastq.gz"
+      - "/path/to/fastq/sample_c_rep1_r1.fastq.gz"
+      - "/path/to/fastq/sample_c_rep2_r1.fastq.gz"
+      - "/path/to/fastq/sample_c_rep3_r1.fastq.gz"
     R2:
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134205_2.fastq.gz"
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134206_2.fastq.gz"
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134207_2.fastq.gz"
+      - "/path/to/fastq/sample_c_rep1_r2.fastq.gz"
+      - "/path/to/fastq/sample_c_rep2_r2.fastq.gz"
+      - "/path/to/fastq/sample_c_rep3_r2.fastq.gz"
 
-  "WT_ZIKV_R1":
+  "sample_D":
     R1:
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134208_1.fastq.gz"
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134209_1.fastq.gz"
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134210_1.fastq.gz"
+      - "/path/to/fastq/sample_d_rep1_r1.fastq.gz"
+      - "/path/to/fastq/sample_d_rep2_r1.fastq.gz"
+      - "/path/to/fastq/sample_d_rep3_r1.fastq.gz"
     R2:
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134208_2.fastq.gz"
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134209_2.fastq.gz"
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134210_2.fastq.gz"
+      - "/path/to/fastq/sample_d_rep1_r2.fastq.gz"
+      - "/path/to/fastq/sample_d_rep2_r2.fastq.gz"
+      - "/path/to/fastq/sample_d_rep3_r2.fastq.gz"
 
-  "WT_ZIKV_R2":
+  "sample_E":
     R1:
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134211_1.fastq.gz"
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134212_1.fastq.gz"
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134213_1.fastq.gz"
+      - "/path/to/fastq/sample_e_rep1_r1.fastq.gz"
+      - "/path/to/fastq/sample_e_rep2_r1.fastq.gz"
+      - "/path/to/fastq/sample_e_rep3_r1.fastq.gz"
     R2:
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134211_2.fastq.gz"
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134212_2.fastq.gz"
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134213_2.fastq.gz"
+      - "/path/to/fastq/sample_e_rep1_r2.fastq.gz"
+      - "/path/to/fastq/sample_e_rep2_r2.fastq.gz"
+      - "/path/to/fastq/sample_e_rep3_r2.fastq.gz"
 
-  "WT_ZIKV_R3":
+  "sample_F":
     R1:
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134214_1.fastq.gz"
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134215_1.fastq.gz"
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134216_1.fastq.gz"
+      - "/path/to/fastq/sample_f_rep1_r1.fastq.gz"
+      - "/path/to/fastq/sample_f_rep2_r1.fastq.gz"
+      - "/path/to/fastq/sample_f_rep3_r1.fastq.gz"
     R2:
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134214_2.fastq.gz"
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134215_2.fastq.gz"
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134216_2.fastq.gz"
+      - "/path/to/fastq/sample_f_rep1_r2.fastq.gz"
+      - "/path/to/fastq/sample_f_rep2_r2.fastq.gz"
+      - "/path/to/fastq/sample_f_rep3_r2.fastq.gz"
 
-  "xrRNA2_ZIKV_R1":
+  "sample_G":
     R1:
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134217_1.fastq.gz"
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134218_1.fastq.gz"
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134219_1.fastq.gz"
+      - "/path/to/fastq/sample_g_rep1_r1.fastq.gz"
+      - "/path/to/fastq/sample_g_rep2_r1.fastq.gz"
+      - "/path/to/fastq/sample_g_rep3_r1.fastq.gz"
     R2:
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134217_2.fastq.gz"
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134218_2.fastq.gz"
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134219_2.fastq.gz"
+      - "/path/to/fastq/sample_g_rep1_r2.fastq.gz"
+      - "/path/to/fastq/sample_g_rep2_r2.fastq.gz"
+      - "/path/to/fastq/sample_g_rep3_r2.fastq.gz"
 
-  "xrRNA2_ZIKV_R2":
+  "sample_H":
     R1:
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134220_1.fastq.gz"
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134221_1.fastq.gz"
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134222_1.fastq.gz"
+      - "/path/to/fastq/sample_h_rep1_r1.fastq.gz"
+      - "/path/to/fastq/sample_h_rep2_r1.fastq.gz"
+      - "/path/to/fastq/sample_h_rep3_r1.fastq.gz"
     R2:
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134220_2.fastq.gz"
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134221_2.fastq.gz"
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134222_2.fastq.gz"
+      - "/path/to/fastq/sample_h_rep1_r2.fastq.gz"
+      - "/path/to/fastq/sample_h_rep2_r2.fastq.gz"
+      - "/path/to/fastq/sample_h_rep3_r2.fastq.gz"
 
-  "xrRNA2_ZIKV_R3":
+  "sample_I":
     R1:
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134223_1.fastq.gz"
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134224_1.fastq.gz"
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134225_1.fastq.gz"
+      - "/path/to/fastq/sample_i_rep1_r1.fastq.gz"
+      - "/path/to/fastq/sample_i_rep2_r1.fastq.gz"
+      - "/path/to/fastq/sample_i_rep3_r1.fastq.gz"
     R2:
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134223_2.fastq.gz"
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134224_2.fastq.gz"
-      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134225_2.fastq.gz"
+      - "/path/to/fastq/sample_i_rep1_r2.fastq.gz"
+      - "/path/to/fastq/sample_i_rep2_r2.fastq.gz"
+      - "/path/to/fastq/sample_i_rep3_r2.fastq.gz"
 
 fastp:
   dedup_adapter:
     dedup: true
 
 ciri3:
-  jar: "/projects/cell-surface/CIRI3/CIRI3_Java_18.0.1.jar"
+  jar: "/path/to/tools/CIRI3_Java_18.0.1.jar"
   Ma: 1
   W: 1
 
@@ -133,18 +133,18 @@ deg:
   padj_cutoff: 0.05
   lfc_cutoff: 1.0
   groups:
-    "Mock":
-      - "Mock_R1"
-      - "Mock_R2"
-      - "Mock_R3"
-    "WT_ZIKV":
-      - "WT_ZIKV_R1"
-      - "WT_ZIKV_R2"
-      - "WT_ZIKV_R3"
-    "xrRNA2_ZIKV":
-      - "xrRNA2_ZIKV_R1"
-      - "xrRNA2_ZIKV_R2"
-      - "xrRNA2_ZIKV_R3"
+    "condition X":
+      - "sample_A"
+      - "sample_B"
+      - "sample_C"
+    "condition Y":
+      - "sample_D"
+      - "sample_E"
+      - "sample_F"
+    "condition Z":
+      - "sample_G"
+      - "sample_H"
+      - "sample_I"
 
 ciri3_de:
   enabled: true
@@ -154,32 +154,32 @@ ciri3_de:
   outdir: "results/deg/ciri3"
   gene_expression_from_featurecounts: true
   comparisons:
-    "WT_ZIKV_vs_Mock":
+    "condition_Y_vs_condition_X":
       case:
-        - "WT_ZIKV_R1"
-        - "WT_ZIKV_R2"
-        - "WT_ZIKV_R3"
+        - "sample_D"
+        - "sample_E"
+        - "sample_F"
       control:
-        - "Mock_R1"
-        - "Mock_R2"
-        - "Mock_R3"
+        - "sample_A"
+        - "sample_B"
+        - "sample_C"
 
-    "xrRNA2_ZIKV_vs_WT_ZIKV":
+    "condition_Z_vs_condition_Y":
       case:
-        - "xrRNA2_ZIKV_R1"
-        - "xrRNA2_ZIKV_R2"
-        - "xrRNA2_ZIKV_R3"
+        - "sample_G"
+        - "sample_H"
+        - "sample_I"
       control:
-        - "WT_ZIKV_R1"
-        - "WT_ZIKV_R2"
-        - "WT_ZIKV_R3"
+        - "sample_D"
+        - "sample_E"
+        - "sample_F"
 
-    "xrRNA2_ZIKV_vs_Mock":
+    "condition_Z_vs_condition_X":
       case:
-        - "xrRNA2_ZIKV_R1"
-        - "xrRNA2_ZIKV_R2"
-        - "xrRNA2_ZIKV_R3"
+        - "sample_G"
+        - "sample_H"
+        - "sample_I"
       control:
-        - "Mock_R1"
-        - "Mock_R2"
-        - "Mock_R3"
+        - "sample_A"
+        - "sample_B"
+        - "sample_C"
