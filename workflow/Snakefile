@@ -200,21 +200,8 @@ rule all:
                 for a, b in DEG_PAIRWISE
             ]
             + [
-                f"{OUTDIR}/deg/ciri3/de_bsj/pairwise/{a}_vs_{b}/result.txt"
+                f"{OUTDIR}/deg/bsj/pairwise/{a}_vs_{b}/pca.pdf"
                 for a, b in DEG_PAIRWISE
-            ]
-            + [
-                f"{OUTDIR}/deg/ciri3/de_ratio/pairwise/{a}_vs_{b}/result.txt"
-                for a, b in DEG_PAIRWISE
-            ]
-            + [
-                f"{OUTDIR}/deg/ciri3/de_relative/pairwise/{a}_vs_{b}/result.txt"
-                for a, b in DEG_PAIRWISE
-            ]
-            + [
-                f"{OUTDIR}/deg/ciri3/de_bsj/all_samples/result.txt",
-                f"{OUTDIR}/deg/ciri3/de_ratio/all_samples/result.txt",
-                f"{OUTDIR}/deg/ciri3/de_relative/all_samples/result.txt",
             ]
             if DEG_ENABLED
             else []
