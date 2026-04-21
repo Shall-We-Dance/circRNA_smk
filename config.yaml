@@ -1,150 +1,94 @@
 threads:
-  merge_fastq: 2
-  fastp: 8
-  star: 16
-  bwa: 16
-  samtools_index: 8
-  samtools_view: 8
-  featurecounts: 8
-  faidx: 2
-  homer: 8
-  splicing_stats: 2
+  merge_fastq: 2          # merge lane FASTQ files by sample
+  fastp: 8                # fastp --thread
+  star: 16                # STAR --runThreadN
+  bwa: 16                 # bwa mem -t (for CIRI3 remap)
+  samtools_index: 8       # samtools index -@
+  samtools_view: 8        # samtools view -@ (CIRI3 prep)
+  featurecounts: 8        # featureCounts -T
+  faidx: 2                # samtools faidx (reference index)
+  homer: 8                # findMotifs.pl -p
+  splicing_stats: 2       # per-sample and merged splicing-site summaries
 
 reference:
-  star_index: "/path/to/reference/star_index"
-  fasta: "/path/to/reference/genome.fa"
-  bwa_indexed_fasta: "/path/to/reference/genome.fa"
-  gtf: "/path/to/reference/annotation.gtf"
+  # STAR genome index folder (must be prebuilt, e.g. contains SA file)
+  star_index: "resources/genomeIndex/refGen"
+  # Example: GCF_002204515.2.fa
+  fasta: "resources/genomeIndex/GCF_002204515.2.fa"
+  # FASTA path used as BWA index prefix. Must already have:
+  # <bwa_indexed_fasta>.amb/.ann/.bwt/.pac/.sa
+  bwa_indexed_fasta: "resources/genomeIndex/GCF_002204515.2.fa"
+  # Example: GCF_002204515.2_AaegL5.0.ncbiRefSeq.gtf
+  gtf: "resources/genomeIndex/GCF_002204515.2_AaegL5.0.ncbiRefSeq.gtf"
 
 samples:
-  "sample_A":
+  sampleA:
     R1:
-      - "/path/to/fastq/sample_a_rep1_r1.fastq.gz"
-      - "/path/to/fastq/sample_a_rep2_r1.fastq.gz"
-      - "/path/to/fastq/sample_a_rep3_r1.fastq.gz"
+      - "raw/sampleA_rep1_r1.fastq.gz"
+      - "raw/sampleA_rep2_r1.fastq.gz"
+      - "raw/sampleA_rep3_r1.fastq.gz"
     R2:
-      - "/path/to/fastq/sample_a_rep1_r2.fastq.gz"
-      - "/path/to/fastq/sample_a_rep2_r2.fastq.gz"
-      - "/path/to/fastq/sample_a_rep3_r2.fastq.gz"
+      - "raw/sampleA_rep1_r2.fastq.gz"
+      - "raw/sampleA_rep2_r2.fastq.gz"
+      - "raw/sampleA_rep3_r2.fastq.gz"
 
-  "sample_B":
+  sampleB:
     R1:
-      - "/path/to/fastq/sample_b_rep1_r1.fastq.gz"
-      - "/path/to/fastq/sample_b_rep2_r1.fastq.gz"
-      - "/path/to/fastq/sample_b_rep3_r1.fastq.gz"
+      - "raw/sampleB_R1.fastq.gz"
     R2:
-      - "/path/to/fastq/sample_b_rep1_r2.fastq.gz"
-      - "/path/to/fastq/sample_b_rep2_r2.fastq.gz"
-      - "/path/to/fastq/sample_b_rep3_r2.fastq.gz"
-
-  "sample_C":
-    R1:
-      - "/path/to/fastq/sample_c_rep1_r1.fastq.gz"
-      - "/path/to/fastq/sample_c_rep2_r1.fastq.gz"
-      - "/path/to/fastq/sample_c_rep3_r1.fastq.gz"
-    R2:
-      - "/path/to/fastq/sample_c_rep1_r2.fastq.gz"
-      - "/path/to/fastq/sample_c_rep2_r2.fastq.gz"
-      - "/path/to/fastq/sample_c_rep3_r2.fastq.gz"
-
-  "sample_D":
-    R1:
-      - "/path/to/fastq/sample_d_rep1_r1.fastq.gz"
-      - "/path/to/fastq/sample_d_rep2_r1.fastq.gz"
-      - "/path/to/fastq/sample_d_rep3_r1.fastq.gz"
-    R2:
-      - "/path/to/fastq/sample_d_rep1_r2.fastq.gz"
-      - "/path/to/fastq/sample_d_rep2_r2.fastq.gz"
-      - "/path/to/fastq/sample_d_rep3_r2.fastq.gz"
-
-  "sample_E":
-    R1:
-      - "/path/to/fastq/sample_e_rep1_r1.fastq.gz"
-      - "/path/to/fastq/sample_e_rep2_r1.fastq.gz"
-      - "/path/to/fastq/sample_e_rep3_r1.fastq.gz"
-    R2:
-      - "/path/to/fastq/sample_e_rep1_r2.fastq.gz"
-      - "/path/to/fastq/sample_e_rep2_r2.fastq.gz"
-      - "/path/to/fastq/sample_e_rep3_r2.fastq.gz"
-
-  "sample_F":
-    R1:
-      - "/path/to/fastq/sample_f_rep1_r1.fastq.gz"
-      - "/path/to/fastq/sample_f_rep2_r1.fastq.gz"
-      - "/path/to/fastq/sample_f_rep3_r1.fastq.gz"
-    R2:
-      - "/path/to/fastq/sample_f_rep1_r2.fastq.gz"
-      - "/path/to/fastq/sample_f_rep2_r2.fastq.gz"
-      - "/path/to/fastq/sample_f_rep3_r2.fastq.gz"
-
-  "sample_G":
-    R1:
-      - "/path/to/fastq/sample_g_rep1_r1.fastq.gz"
-      - "/path/to/fastq/sample_g_rep2_r1.fastq.gz"
-      - "/path/to/fastq/sample_g_rep3_r1.fastq.gz"
-    R2:
-      - "/path/to/fastq/sample_g_rep1_r2.fastq.gz"
-      - "/path/to/fastq/sample_g_rep2_r2.fastq.gz"
-      - "/path/to/fastq/sample_g_rep3_r2.fastq.gz"
-
-  "sample_H":
-    R1:
-      - "/path/to/fastq/sample_h_rep1_r1.fastq.gz"
-      - "/path/to/fastq/sample_h_rep2_r1.fastq.gz"
-      - "/path/to/fastq/sample_h_rep3_r1.fastq.gz"
-    R2:
-      - "/path/to/fastq/sample_h_rep1_r2.fastq.gz"
-      - "/path/to/fastq/sample_h_rep2_r2.fastq.gz"
-      - "/path/to/fastq/sample_h_rep3_r2.fastq.gz"
-
-  "sample_I":
-    R1:
-      - "/path/to/fastq/sample_i_rep1_r1.fastq.gz"
-      - "/path/to/fastq/sample_i_rep2_r1.fastq.gz"
-      - "/path/to/fastq/sample_i_rep3_r1.fastq.gz"
-    R2:
-      - "/path/to/fastq/sample_i_rep1_r2.fastq.gz"
-      - "/path/to/fastq/sample_i_rep2_r2.fastq.gz"
-      - "/path/to/fastq/sample_i_rep3_r2.fastq.gz"
+      - "raw/sampleB_R2.fastq.gz"
 
 fastp:
+  # dedup + adapter trimming
   dedup_adapter:
     dedup: true
 
 ciri3:
-  jar: "/path/to/tools/CIRI3_Java_18.0.1.jar"
+  # local CIRI3 jar path
+  jar: "/path/to/CIRI3_v1.0.1.jar"
+  # CIRI3 main parameters
   Ma: 1
   W: 1
 
 motif:
+  # run BSJ-centered motif analysis with HOMER based on all_samples.ciri3.BSJ_Matrix
   enabled: true
+  # sequence window size on each side of BSJ donor/acceptor site
   flank: 30
+  # how to weight each BSJ when aggregating site-level support for sequence export: sum | mean | none
   weight_mode: "sum"
+  # motif lengths for HOMER findMotifs.pl, comma-separated
   homer_len: "8,10,12"
 
 output:
   dir: "results"
+  # keep STAR/BWA BAM files after pipeline finishes
   keep_bam: false
 
 deg:
-  enabled: false
+  # run BSJ differential analysis with DESeq2
+  enabled: true
+  # minimum BSJ count across selected samples
   min_total_count: 10
+  # minimum number of selected samples with BSJ count > 0
   min_samples_detected: 2
+  # significance thresholds used for labels and volcano highlighting
   padj_cutoff: 0.05
   lfc_cutoff: 1.0
+  # group name -> sample names (must exist in "samples")
   groups:
-    "condition X":
-      - "sample_A"
-      - "sample_B"
-      - "sample_C"
-    "condition Y":
-      - "sample_D"
-      - "sample_E"
-      - "sample_F"
-    "condition Z":
-      - "sample_G"
-      - "sample_H"
-      - "sample_I"
+    conditionX:
+      - sampleA
+      - sampleB
+      - sampleC
+    conditionY:
+      - sampleD
+      - sampleE
+      - sampleF
+    conditionZ:
+      - sampleG
+      - sampleH
+      - sampleI 
 
 ciri3_de:
   enabled: true
@@ -154,7 +98,7 @@ ciri3_de:
   outdir: "results/deg/ciri3"
   gene_expression_from_featurecounts: true
   comparisons:
-    "condition_Y_vs_condition_X":
+    condition_Y_vs_condition_X:
       case:
         - "sample_D"
         - "sample_E"
@@ -164,7 +108,7 @@ ciri3_de:
         - "sample_B"
         - "sample_C"
 
-    "condition_Z_vs_condition_Y":
+    condition_Z_vs_condition_Y:
       case:
         - "sample_G"
         - "sample_H"
@@ -174,7 +118,7 @@ ciri3_de:
         - "sample_E"
         - "sample_F"
 
-    "condition_Z_vs_condition_X":
+    condition_Z_vs_condition_X:
       case:
         - "sample_G"
         - "sample_H"
