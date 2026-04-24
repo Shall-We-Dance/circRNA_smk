@@ -43,15 +43,13 @@ This repository provides a reproducible Snakemake workflow for analyzing circula
   - `results/deg/bsj/all_groups/heatmap_top50.pdf`
   - `results/deg/bsj/all_groups/pca.pdf`
   - `results/deg/bsj/all_groups/vst_counts.tsv`
-  - `results/deg/bsj/pairwise/<GroupA>_vs_<GroupB>/deseq2_results.tsv`
-  - `results/deg/bsj/pairwise/<GroupA>_vs_<GroupB>/volcano.pdf`
-  - `results/deg/bsj/pairwise/<GroupA>_vs_<GroupB>/heatmap_top50.pdf`
-  - `results/deg/ciri3/de_bsj/pairwise/<GroupA>_vs_<GroupB>/result.txt`
-  - `results/deg/ciri3/de_bsj/all_samples/result.txt`
-  - `results/deg/ciri3/de_ratio/pairwise/<GroupA>_vs_<GroupB>/result.txt`
-  - `results/deg/ciri3/de_ratio/all_samples/result.txt`
-  - `results/deg/ciri3/de_relative/pairwise/<GroupA>_vs_<GroupB>/result.txt`
-  - `results/deg/ciri3/de_relative/all_samples/result.txt`
+  - `results/deg/bsj/pairwise/<CaseGroup>_vs_<ControlGroup>/deseq2_results.tsv`
+  - `results/deg/bsj/pairwise/<CaseGroup>_vs_<ControlGroup>/volcano.pdf`
+  - `results/deg/bsj/pairwise/<CaseGroup>_vs_<ControlGroup>/heatmap_top50.pdf`
+  - `results/deg/ciri3/<CaseGroup>_vs_<ControlGroup>/de_bsj/result.txt`
+  - `results/deg/ciri3/<CaseGroup>_vs_<ControlGroup>/de_ratio/result.txt`
+  - `results/deg/ciri3/<CaseGroup>_vs_<ControlGroup>/de_relative/result.txt`
+
 ### Intermediate file handling
 To minimize storage footprint, intermediate FASTQs produced by fastp and merged FASTQs are marked as temporary and are removed automatically by Snakemake. In addition, STAR/BWA BAM files are temporary by default (`output.keep_bam: false`) and will be removed after downstream rules finish. Set `output.keep_bam: true` if you want to retain BAM/BAI files. Final deliverables include:
 - QC reports (fastp + multiqc)
@@ -76,12 +74,12 @@ To minimize storage footprint, intermediate FASTQs produced by fastp and merged 
    Gene-level quantification is generated with featureCounts and circular RNA detection is run with CIRI3. The workflow writes per-sample CIRI3 outputs first, then merges all samples into `all_samples.ciri3`, `all_samples.ciri3.BSJ_Matrix`, and `all_samples.ciri3.FSJ_Matrix` with sample names as matrix column names.
 
 6. **BSJ differential expression (optional)**  
-   When `deg.enabled: true`, the pipeline runs both DESeq2 and CIRI3 differential modules using configured groups:
-   - DESeq2 BSJ differential analysis from `all_samples.ciri3.BSJ_Matrix` (overall + pairwise with volcano/heatmap/PCA plots),
-   - CIRI3 `DE_BSJ` pairwise analysis (with per-pair `infor.tsv`, BSJ matrix subset, and featureCounts-derived gene expression matrix),
-   - CIRI3 `DE_Ratio` pairwise analysis (with per-pair `infor.tsv`, BSJ subset, and FSJ subset),
-   - CIRI3 `DE_Relative` pairwise analysis (with per-pair `infor.tsv` built from sample CIRI3 result paths),
-   - merged `all_samples/result.txt` in each CIRI3 DEG folder by concatenating pairwise outputs and adding a `comparison` column.
+   The unified `deg:` block controls both DESeq2 and CIRI3 differential modules:
+   - `deg.run_deseq2: true` runs DESeq2 BSJ differential analysis from `all_samples.ciri3.BSJ_Matrix` (overall + pairwise with volcano/heatmap/PCA plots),
+   - `deg.run_de_bsj: true` runs CIRI3 `DE_BSJ` pairwise analysis (with per-pair `infor.tsv`, BSJ matrix subset, and featureCounts-derived gene expression matrix),
+   - `deg.run_de_ratio: true` runs CIRI3 `DE_Ratio` pairwise analysis (with per-pair `infor.tsv`, BSJ subset, and FSJ subset),
+   - `deg.run_de_relative: true` runs CIRI3 `DE_Relative` pairwise analysis (with per-pair `infor.tsv` built from sample CIRI3 result paths).
+   Pairwise comparisons are generated from `deg.groups` in group order. For `conditionX`, `conditionY`, `conditionZ`, outputs are named `conditionY_vs_conditionX`, `conditionZ_vs_conditionY`, and `conditionZ_vs_conditionX`, where the first group is the case group and the second group is the control group.
 
 7. **Splicing-site feature statistics (enabled by default)**  
    The workflow computes per-sample circRNA splicing-site feature tables using each sample's CIRI3 BSJ/FSJ matrices plus the reference genome FASTA. It reports BSJ/FSJ counts, BSJ-vs-FSJ ratio, BSJ span, and splice-site dinucleotide classes (canonical `GU-AG`, semi-canonical `GC-AG`, minor `AU-AC`, non-canonical, unknown), with per-sample distribution plots, then merges all samples into unified summary/distribution tables and an overview figure.
@@ -135,11 +133,18 @@ Key fields:
 * `reference.fasta`: reference FASTA (used by downstream steps such as CIRI3 support files)
 * `reference.bwa_indexed_fasta`: BWA-indexed FASTA path (BWA sidecar files must already exist with this path as prefix)
 * `reference.gtf`: reference annotation GTF
+* `ciri3.jar`: CIRI3 Java archive
+* `ciri3.root`: optional CIRI3 installation root used to locate `scripts/BSJ_yes.R` and `lib/rmats_deps`; override with `ciri3.bsj_script` or `ciri3.rmats_deps` when needed
 * `samples`: mapping of sample name to lists of FASTQs for R1 and R2
 * `threads`: module-level CPU thread settings (configure each module independently; e.g., `threads.homer` for HOMER, `threads.samtools_view` for CIRI3 SAM conversion, `threads.splicing_stats` for splicing summary scripts)
 * `output.keep_bam`: keep STAR/BWA BAM files (`false` by default to save disk)
-* `deg.enabled`: run optional BSJ-level DE analysis (`false` by default)
-* `deg.groups`: group-to-sample mapping for DESeq2 + CIRI3 pairwise DEG analysis
+* `deg.run_deseq2`: run optional BSJ-level DESeq2 analysis (`false` by default)
+* `deg.run_de_bsj`: run CIRI3 `DE_BSJ` pairwise analysis (`false` by default)
+* `deg.run_de_ratio`: run CIRI3 `DE_Ratio` pairwise analysis (`false` by default)
+* `deg.run_de_relative`: run CIRI3 `DE_Relative` pairwise analysis (`false` by default)
+* `deg.ciri3_gene_expression_from_featurecounts`: build CIRI3 `DE_BSJ` gene-expression input from featureCounts (`true` by default; currently required for `run_de_bsj`)
+* `deg.groups`: group-to-sample mapping for DESeq2 + CIRI3 pairwise DEG analysis; each sample must exist under top-level `samples`, and enabled comparisons require at least two samples per group
+* `deg.comparisons`: optional explicit pairwise comparison map; prefer `deg.groups` auto-generation unless you need a custom subset/order
 * `deg.min_total_count`: minimum total BSJ count across selected samples (default `10`)
 * `deg.min_samples_detected`: minimum number of samples with BSJ count > 0 (default `2`)
 * `deg.padj_cutoff`: adjusted p-value threshold used for significance labels/plots (default `0.05`)
@@ -169,6 +174,10 @@ reference:
   bwa_indexed_fasta: "/path/to/genome.fa"
   gtf: "/path/to/genes.gtf"
 
+ciri3:
+  jar: "/path/to/CIRI3/CIRI3_v1.0.1.jar"
+  root: "/path/to/CIRI3"
+
 samples:
   sampleA:
     R1:
@@ -182,9 +191,23 @@ samples:
       - "raw/sampleB_R1.fastq.gz"
     R2:
       - "raw/sampleB_R2.fastq.gz"
+  sampleC:
+    R1:
+      - "raw/sampleC_R1.fastq.gz"
+    R2:
+      - "raw/sampleC_R2.fastq.gz"
+  sampleD:
+    R1:
+      - "raw/sampleD_R1.fastq.gz"
+    R2:
+      - "raw/sampleD_R2.fastq.gz"
 
 deg:
-  enabled: true
+  run_deseq2: true
+  run_de_bsj: true
+  run_de_ratio: true
+  run_de_relative: true
+  ciri3_gene_expression_from_featurecounts: true
   min_total_count: 10
   min_samples_detected: 2
   padj_cutoff: 0.05
@@ -192,9 +215,40 @@ deg:
   groups:
     GroupA:
       - sampleA
-    GroupB:
       - sampleB
+    GroupB:
+      - sampleC
+      - sampleD
 ```
+
+Optional explicit comparisons can be provided under `deg.comparisons` when you need a custom subset or order:
+
+```yaml
+deg:
+  groups:
+    GroupA: [sampleA, sampleB]
+    GroupB: [sampleC, sampleD]
+  comparisons:
+    GroupB_vs_GroupA:
+      case_group: GroupB
+      control_group: GroupA
+```
+
+### Migrating old CIRI3 DE config
+
+The old top-level `ciri3_de:` block and `deg.enabled` switch are no longer supported. Update old configs to the unified `deg:` schema before running the workflow.
+
+| Old field | New field |
+| --- | --- |
+| `deg.enabled` | `deg.run_deseq2` |
+| `ciri3_de.enabled + ciri3_de.run_de_bsj` | `deg.run_de_bsj` |
+| `ciri3_de.enabled + ciri3_de.run_de_ratio` | `deg.run_de_ratio` |
+| `ciri3_de.enabled + ciri3_de.run_de_relative` | `deg.run_de_relative` |
+| `ciri3_de.gene_expression_from_featurecounts` | `deg.ciri3_gene_expression_from_featurecounts` |
+| `ciri3_de.outdir` | optional `deg.ciri3_outdir`; default remains `results/deg/ciri3` |
+| `ciri3_de.comparisons` | optional `deg.comparisons`, preferably using `case_group`/`control_group`; omitting this lets the workflow generate comparisons from `deg.groups` |
+
+Prefer omitting `deg.comparisons` and letting the workflow generate pairwise comparisons from `deg.groups`. If explicit sample-list comparisons are used, each case/control list must exactly match one configured `deg.groups` entry. Unknown names such as `sample_A` when the configured sample is `sampleA` fail early with a list of valid sample names.
 
 Notes:
 

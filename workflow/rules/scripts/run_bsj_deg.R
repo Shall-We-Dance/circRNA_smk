@@ -19,6 +19,7 @@ message("Starting BSJ DEG analysis.")
 counts_path <- snakemake@input[["bsj"]]
 ciri3_path <- snakemake@input[["ciri3"]]
 groups <- snakemake@params[["groups"]]
+comparisons <- snakemake@params[["comparisons"]]
 padj_cutoff <- as.numeric(snakemake@params[["padj_cutoff"]])
 lfc_cutoff <- as.numeric(snakemake@params[["lfc_cutoff"]])
 min_total_count <- as.numeric(snakemake@params[["min_total_count"]])
@@ -152,7 +153,7 @@ design <- data.frame(
   group = sample_to_group[matched_samples],
   stringsAsFactors = FALSE
 )
-design$group <- factor(design$group, levels = sort(unique(design$group)))
+design$group <- factor(design$group, levels = names(groups))
 rownames(design) <- design$sample
 
 counts <- counts[, design$sample, drop = FALSE]
@@ -346,9 +347,6 @@ pdf(snakemake@output[["pca"]], width = 7, height = 5)
 plotPCA(vst_obj, intgroup = "group")
 dev.off()
 
-group_levels <- levels(design$group)
-pairwise <- combn(group_levels, 2, simplify = FALSE)
-
 pairwise_outputs <- function(output_paths, suffix) {
   matched <- output_paths[grepl(paste0("/", suffix, "$"), output_paths)]
   setNames(matched, basename(dirname(matched)))
@@ -361,35 +359,51 @@ pair_heatmap <- pairwise_outputs(unlist(snakemake@output[["pairwise_heatmap"]]),
 pair_pca <- pairwise_outputs(unlist(snakemake@output[["pairwise_pca"]]), "pca.pdf")
 pairwise_sig_rank <- data.frame(circRNA = character(0), padj = numeric(0), stringsAsFactors = FALSE)
 
-for (pair in pairwise) {
-  g1 <- pair[[1]]
-  g2 <- pair[[2]]
-  pair_name <- paste0(g1, "_vs_", g2)
+has_named_path <- function(paths, name) {
+  !is.null(paths[[name]]) && !is.na(paths[[name]]) && nzchar(paths[[name]])
+}
+
+for (pair_name in names(comparisons)) {
+  comparison <- comparisons[[pair_name]]
+  case_group <- as.character(comparison[["case_group"]])
+  control_group <- as.character(comparison[["control_group"]])
+  case_samples <- as.character(unlist(comparison[["case"]]))
+  control_samples <- as.character(unlist(comparison[["control"]]))
+
+  if (!(case_group %in% levels(design$group)) || !(control_group %in% levels(design$group))) {
+    stop("Comparison '", pair_name, "' references groups missing from the DESeq2 design.")
+  }
+  if (!has_named_path(pair_results, pair_name) || !has_named_path(pair_volcano, pair_name) ||
+      !has_named_path(pair_volcano_labeled, pair_name) || !has_named_path(pair_heatmap, pair_name) ||
+      !has_named_path(pair_pca, pair_name)) {
+    stop("Missing declared DESeq2 output path for comparison: ", pair_name)
+  }
+
   message("Running pairwise comparison: ", pair_name)
-  res <- results(dds, contrast = c("group", g2, g1))
+  res <- results(dds, contrast = c("group", case_group, control_group))
   res_df <- data.frame(circRNA = rownames(res), as.data.frame(res), check.names = FALSE)
   res_df <- merge(bsj_annot, res_df, by = "circRNA", all.y = TRUE, sort = FALSE)
   res_df <- merge(res_df, ciri3_annot, by = "circRNA", all.x = TRUE, sort = FALSE)
   res_df$regulation <- ifelse(
     !is.na(res_df$padj) & res_df$padj < padj_cutoff & res_df$log2FoldChange >= lfc_cutoff,
-    paste0("Up_in_", g2),
+    paste0("Up_in_", case_group),
     ifelse(
       !is.na(res_df$padj) & res_df$padj < padj_cutoff & res_df$log2FoldChange <= -lfc_cutoff,
-      paste0("Up_in_", g1),
+      paste0("Up_in_", control_group),
       "Not_significant"
     )
   )
   write.table(res_df, file = pair_results[[pair_name]], sep = "\t", quote = FALSE, row.names = FALSE)
   plot_volcano(
     res_df,
-    paste0("BSJ DEG: ", g2, " vs ", g1),
+    paste0("BSJ DEG: ", case_group, " vs ", control_group),
     pair_volcano[[pair_name]],
     alpha = padj_cutoff,
     lfc_threshold = lfc_cutoff
   )
   plot_volcano_labeled(
     res_df,
-    paste0("BSJ DEG (labeled): ", g2, " vs ", g1),
+    paste0("BSJ DEG (labeled): ", case_group, " vs ", control_group),
     pair_volcano_labeled[[pair_name]],
     alpha = padj_cutoff,
     lfc_threshold = lfc_cutoff
@@ -399,7 +413,8 @@ for (pair in pairwise) {
   if (nrow(sig) > 0) {
     pairwise_sig_rank <- rbind(pairwise_sig_rank, sig[, c("circRNA", "padj"), drop = FALSE])
   }
-  pair_samples <- design$sample[design$group %in% c(g1, g2)]
+  pair_samples <- c(case_samples, control_samples)
+  pair_samples <- pair_samples[pair_samples %in% design$sample]
   pair_vst <- vst_mat[, pair_samples, drop = FALSE]
   pair_design <- design[pair_samples, , drop = FALSE]
   feature_labels <- setNames(
@@ -415,7 +430,7 @@ for (pair in pairwise) {
     sig$circRNA,
     feature_labels,
     pair_heatmap[[pair_name]],
-    paste0("Top significant BSJs: ", g1, " vs ", g2),
+    paste0("Top significant BSJs: ", case_group, " vs ", control_group),
     setNames(as.character(pair_design$group), pair_design$sample)
   )
 
@@ -435,7 +450,7 @@ for (pair in pairwise) {
     geom_text(vjust = -0.5, size = 3, show.legend = FALSE) +
     theme_minimal(base_size = 11) +
     labs(
-      title = paste0("Pairwise PCA: ", g1, " vs ", g2),
+      title = paste0("Pairwise PCA: ", case_group, " vs ", control_group),
       x = sprintf("PC1 (%.1f%%)", ve[1] * 100),
       y = sprintf("PC2 (%.1f%%)", ve[2] * 100),
       color = "Group"

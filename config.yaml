@@ -38,6 +38,48 @@ samples:
     R2:
       - "raw/sampleB_R2.fastq.gz"
 
+  sampleC:
+    R1:
+      - "raw/sampleC_R1.fastq.gz"
+    R2:
+      - "raw/sampleC_R2.fastq.gz"
+
+  sampleD:
+    R1:
+      - "raw/sampleD_R1.fastq.gz"
+    R2:
+      - "raw/sampleD_R2.fastq.gz"
+
+  sampleE:
+    R1:
+      - "raw/sampleE_R1.fastq.gz"
+    R2:
+      - "raw/sampleE_R2.fastq.gz"
+
+  sampleF:
+    R1:
+      - "raw/sampleF_R1.fastq.gz"
+    R2:
+      - "raw/sampleF_R2.fastq.gz"
+
+  sampleG:
+    R1:
+      - "raw/sampleG_R1.fastq.gz"
+    R2:
+      - "raw/sampleG_R2.fastq.gz"
+
+  sampleH:
+    R1:
+      - "raw/sampleH_R1.fastq.gz"
+    R2:
+      - "raw/sampleH_R2.fastq.gz"
+
+  sampleI:
+    R1:
+      - "raw/sampleI_R1.fastq.gz"
+    R2:
+      - "raw/sampleI_R2.fastq.gz"
+
 fastp:
   # dedup + adapter trimming
   dedup_adapter:
@@ -46,6 +88,8 @@ fastp:
 ciri3:
   # local CIRI3 jar path
   jar: "/path/to/CIRI3_v1.0.1.jar"
+  # optional CIRI3 install root used to locate scripts/BSJ_yes.R and lib/rmats_deps
+  root: "/path/to/CIRI3"
   # CIRI3 main parameters
   Ma: 1
   W: 1
@@ -67,7 +111,12 @@ output:
 
 deg:
   # run BSJ differential analysis with DESeq2
-  enabled: true
+  run_deseq2: true
+  # CIRI3 differential analysis options
+  run_de_bsj: true
+  run_de_ratio: true
+  run_de_relative: true
+  ciri3_gene_expression_from_featurecounts: true
   # minimum BSJ count across selected samples
   min_total_count: 10
   # minimum number of selected samples with BSJ count > 0
@@ -88,42 +137,4 @@ deg:
     conditionZ:
       - sampleG
       - sampleH
-      - sampleI 
-
-ciri3_de:
-  enabled: true
-  run_de_bsj: true
-  run_de_ratio: true
-  run_de_relative: true
-  outdir: "results/deg/ciri3"
-  gene_expression_from_featurecounts: true
-  comparisons:
-    condition_Y_vs_condition_X:
-      case:
-        - "sample_D"
-        - "sample_E"
-        - "sample_F"
-      control:
-        - "sample_A"
-        - "sample_B"
-        - "sample_C"
-
-    condition_Z_vs_condition_Y:
-      case:
-        - "sample_G"
-        - "sample_H"
-        - "sample_I"
-      control:
-        - "sample_D"
-        - "sample_E"
-        - "sample_F"
-
-    condition_Z_vs_condition_X:
-      case:
-        - "sample_G"
-        - "sample_H"
-        - "sample_I"
-      control:
-        - "sample_A"
-        - "sample_B"
-        - "sample_C"
+      - sampleI

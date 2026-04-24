@@ -4,20 +4,23 @@ import re
 
 OUTDIR = config["output"]["dir"]
 SAMPLES = list(config["samples"].keys())
-
-PAIRWISE_NAMES = [f"{a}_vs_{b}" for a, b in DEG_PAIRWISE]
-PAIRWISE_TO_GROUPS = {
-    f"{a}_vs_{b}": (a, b)
-    for a, b in DEG_PAIRWISE
-}
-
+CIRI3_CFG = config.get("ciri3", {})
+CIRI3_ROOT = CIRI3_CFG.get("root", os.path.dirname(CIRI3_CFG.get("jar", "")))
+CIRI3_RMATS_DEPS = CIRI3_CFG.get(
+    "rmats_deps",
+    os.path.join(CIRI3_ROOT, "lib", "rmats_deps"),
+)
+CIRI3_BSJ_SCRIPT = CIRI3_CFG.get(
+    "bsj_script",
+    os.path.join(CIRI3_ROOT, "scripts", "BSJ_yes.R"),
+)
 
 def ciri3_de_case_samples(comparison):
-    return list(CIRI3_DE_COMPARISONS[comparison]["case"])
+    return list(DEG_COMPARISONS[comparison]["case"])
 
 
 def ciri3_de_control_samples(comparison):
-    return list(CIRI3_DE_COMPARISONS[comparison]["control"])
+    return list(DEG_COMPARISONS[comparison]["control"])
 
 
 def ciri3_de_all_samples(comparison):
@@ -52,26 +55,27 @@ rule bsj_deg_analysis:
         vst_counts=f"{OUTDIR}/deg/bsj/all_groups/vst_counts.tsv",
         pairwise_results=expand(
             f"{OUTDIR}/deg/bsj/pairwise/{{pair}}/deseq2_results.tsv",
-            pair=[f"{a}_vs_{b}" for a, b in DEG_PAIRWISE],
+            pair=DEG_COMPARISON_NAMES,
         ),
         pairwise_volcano=expand(
             f"{OUTDIR}/deg/bsj/pairwise/{{pair}}/volcano.pdf",
-            pair=[f"{a}_vs_{b}" for a, b in DEG_PAIRWISE],
+            pair=DEG_COMPARISON_NAMES,
         ),
         pairwise_volcano_labeled=expand(
             f"{OUTDIR}/deg/bsj/pairwise/{{pair}}/volcano_labeled.pdf",
-            pair=[f"{a}_vs_{b}" for a, b in DEG_PAIRWISE],
+            pair=DEG_COMPARISON_NAMES,
         ),
         pairwise_heatmap=expand(
             f"{OUTDIR}/deg/bsj/pairwise/{{pair}}/heatmap_top50.pdf",
-            pair=[f"{a}_vs_{b}" for a, b in DEG_PAIRWISE],
+            pair=DEG_COMPARISON_NAMES,
         ),
         pairwise_pca=expand(
             f"{OUTDIR}/deg/bsj/pairwise/{{pair}}/pca.pdf",
-            pair=[f"{a}_vs_{b}" for a, b in DEG_PAIRWISE],
+            pair=DEG_COMPARISON_NAMES,
         )
     params:
         groups=DEG_GROUPS,
+        comparisons=DEG_COMPARISONS,
         min_total_count=DEG_MIN_TOTAL_COUNT,
         min_samples_detected=DEG_MIN_SAMPLES_DETECTED,
         padj_cutoff=DEG_PADJ_CUTOFF,
@@ -149,21 +153,24 @@ rule ciri3_de_prepare_bsj:
 
         geneid_idx = fc_header.index("Geneid")
 
-        count_start_idx = 6
-        if len(fc_header[count_start_idx:]) != len(SAMPLES):
-            raise ValueError(
-                "Unexpected number of featureCounts sample columns. "
-                f"Found {len(fc_header[count_start_idx:])}, expected {len(SAMPLES)}."
-            )
+        def normalize_featurecounts_colname(name):
+            base = os.path.basename(name)
+            suffix = ".Aligned.sortedByCoord.out.bam"
+            if base.endswith(suffix):
+                return base[:-len(suffix)]
+            return base
 
         sample_to_fc_idx = {}
-        for i, sample in enumerate(SAMPLES):
-            sample_to_fc_idx[sample] = count_start_idx + i
+        count_start_idx = 6
+        for idx, col_name in enumerate(fc_header[count_start_idx:], start=count_start_idx):
+            sample_name = normalize_featurecounts_colname(col_name)
+            if sample_name not in sample_to_fc_idx:
+                sample_to_fc_idx[sample_name] = idx
 
         missing_fc = [s for s in selected_samples if s not in sample_to_fc_idx]
         if missing_fc:
             raise ValueError(
-                "Selected samples missing from featureCounts sample mapping for comparison "
+                "Selected samples missing from featureCounts header for comparison "
                 f"{comparison}: " + ", ".join(missing_fc)
             )
 
@@ -317,8 +324,8 @@ rule ciri3_run_de_bsj:
     output:
         result=f"{CIRI3_DE_OUTDIR}/{{comparison}}/de_bsj/result.txt"
     params:
-        ld_path="/projects/cell-surface/CIRI3/lib/rmats_deps",
-        bsj_script="/projects/cell-surface/CIRI3/scripts/BSJ_yes.R"
+        ld_path=CIRI3_RMATS_DEPS,
+        bsj_script=CIRI3_BSJ_SCRIPT
     conda:
         "envs/ciri3.yaml"
     log:
@@ -352,7 +359,7 @@ rule ciri3_run_de_ratio:
         result=f"{CIRI3_DE_OUTDIR}/{{comparison}}/de_ratio/result.txt"
     params:
         jar=config["ciri3"]["jar"],
-        ld_path="/projects/cell-surface/CIRI3/lib/rmats_deps"
+        ld_path=CIRI3_RMATS_DEPS
     conda:
         "envs/ciri3.yaml"
     log:
@@ -390,7 +397,7 @@ rule ciri3_run_de_relative:
         result=f"{CIRI3_DE_OUTDIR}/{{comparison}}/de_relative/result.txt"
     params:
         jar=config["ciri3"]["jar"],
-        ld_path="/projects/cell-surface/CIRI3/lib/rmats_deps"
+        ld_path=CIRI3_RMATS_DEPS
     conda:
         "envs/ciri3.yaml"
     log:
