@@ -8,3 +8,4 @@ dependencies:
   - r-base
   - bioconductor-edger
   - bioconductor-limma
+  - r-statmod
