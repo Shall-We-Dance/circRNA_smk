@@ -333,20 +333,22 @@ rule ciri3_run_de_bsj:
     shell:
         r"""
         set -uo pipefail
-        export LD_LIBRARY_PATH={params.ld_path}:${{LD_LIBRARY_PATH:-}}
-        mkdir -p $(dirname {output.result}) $(dirname {log})
+        export LD_LIBRARY_PATH="{params.ld_path}:${{LD_LIBRARY_PATH:-}}"
+        output_dir=$(dirname "{output.result}")
+        log_dir=$(dirname "{log}")
+        mkdir -p "$output_dir" "$log_dir"
 
         set +e
-        Rscript --vanilla {params.bsj_script} \
-          {input.info} \
-          {input.bsj_matrix} \
-          {input.gene_expression} \
-          {output.result} \
-          > {log} 2>&1
+        Rscript --vanilla "{params.bsj_script}" \
+          "{input.info}" \
+          "{input.bsj_matrix}" \
+          "{input.gene_expression}" \
+          "{output.result}" \
+          > "{log}" 2>&1
         status=$?
         set -e
 
-        test -s {output.result} || (echo "DE_BSJ failed and did not create output. Exit code: $status" >&2; exit 1)
+        test -s "{output.result}" || (echo "DE_BSJ failed and did not create output. Exit code: $status" >&2; exit 1)
         """
 
 
@@ -367,24 +369,26 @@ rule ciri3_run_de_ratio:
     shell:
         r"""
         set -uo pipefail
-        export LD_LIBRARY_PATH={params.ld_path}:${{LD_LIBRARY_PATH:-}}
-        mkdir -p $(dirname {output.result}) $(dirname {log})
+        export LD_LIBRARY_PATH="{params.ld_path}:${{LD_LIBRARY_PATH:-}}"
+        output_dir=$(dirname "{output.result}")
+        log_dir=$(dirname "{log}")
+        mkdir -p "$output_dir" "$log_dir"
 
         set +e
-        java -jar {params.jar} DE_Ratio \
-          -I {input.info} \
-          -BM {input.bsj_matrix} \
-          -FM {input.fsj_matrix} \
-          -O {output.result} \
-          > {log} 2>&1
+        java -jar "{params.jar}" DE_Ratio \
+          -I "{input.info}" \
+          -BM "{input.bsj_matrix}" \
+          -FM "{input.fsj_matrix}" \
+          -O "{output.result}" \
+          > "{log}" 2>&1
         status=$?
         set -e
 
-        if [ ! -s {output.result} ] && [ -s {output.result}_Control_Case ]; then
-          cp {output.result}_Control_Case {output.result}
+        if [ ! -s "{output.result}" ] && [ -s "{output.result}_Control_Case" ]; then
+          cp "{output.result}_Control_Case" "{output.result}"
         fi
 
-        test -s {output.result} || (echo "DE_Ratio failed and did not create output. Exit code: $status" >&2; exit 1)
+        test -s "{output.result}" || (echo "DE_Ratio failed and did not create output. Exit code: $status" >&2; exit 1)
         """
 
 
@@ -405,22 +409,24 @@ rule ciri3_run_de_relative:
     shell:
         r"""
         set -uo pipefail
-        export LD_LIBRARY_PATH={params.ld_path}:${{LD_LIBRARY_PATH:-}}
-        mkdir -p $(dirname {output.result}) $(dirname {log})
+        export LD_LIBRARY_PATH="{params.ld_path}:${{LD_LIBRARY_PATH:-}}"
+        output_dir=$(dirname "{output.result}")
+        log_dir=$(dirname "{log}")
+        mkdir -p "$output_dir" "$log_dir"
 
         set +e
-        java -jar {params.jar} DE_Relative \
-          -I {input.info} \
-          -M {input.bsj_matrix} \
-          -GC {input.circ_gene} \
-          -O {output.result} \
-          > {log} 2>&1
+        java -jar "{params.jar}" DE_Relative \
+          -I "{input.info}" \
+          -M "{input.bsj_matrix}" \
+          -GC "{input.circ_gene}" \
+          -O "{output.result}" \
+          > "{log}" 2>&1
         status=$?
         set -e
 
-        if [ ! -s {output.result} ] && [ -s {output.result}_Control_Case ]; then
-          cp {output.result}_Control_Case {output.result}
+        if [ ! -s "{output.result}" ] && [ -s "{output.result}_Control_Case" ]; then
+          cp "{output.result}_Control_Case" "{output.result}"
         fi
 
-        test -s {output.result} || (echo "DE_Relative failed and did not create output. Exit code: $status" >&2; exit 1)
+        test -s "{output.result}" || (echo "DE_Relative failed and did not create output. Exit code: $status" >&2; exit 1)
         """
