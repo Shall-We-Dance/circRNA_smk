@@ -1,9 +1,5 @@
 # workflow/rules/motif.smk
 
-OUTDIR = config["output"]["dir"]
-SAMPLES = list(config["samples"].keys())
-
-
 rule prepare_bsj_motif_inputs:
     input:
         bsj=f"{OUTDIR}/ciri3/per_sample/{{sample}}.ciri3.BSJ_Matrix",
@@ -12,6 +8,8 @@ rule prepare_bsj_motif_inputs:
     output:
         site_table=f"{OUTDIR}/motif/{{sample}}/bsj_sites.tsv",
         site_fasta=f"{OUTDIR}/motif/{{sample}}/bsj_sites.fa"
+    log:
+        "logs/motif/{sample}.prepare.log"
     conda:
         "envs/motif.yaml"
     params:
@@ -39,19 +37,20 @@ rule run_homer_bsj_motif:
     shell:
         r"""
         set -euo pipefail
-        mkdir -p {output.homer_dir} $(dirname {log})
+        log_dir=$(dirname "{log}")
+        mkdir -p "{output.homer_dir}" "$log_dir"
 
-        findMotifs.pl {input.site_fasta} fasta {output.homer_dir} \
+        findMotifs.pl "{input.site_fasta}" fasta "{output.homer_dir}" \
           -len {params.homer_len} \
           -p {threads} \
-          > {log} 2>&1
+          > "{log}" 2>&1
 
-        if [ -s {output.known_results} ]; then
-          cp {output.known_results} {output.motif_summary}
-        elif [ -s {output.homer_dir}/homerMotifs.all.motifs ]; then
-          printf "# HOMER completed, but knownResults.txt is missing.\n" > {output.known_results}
-          printf "# Please inspect: %s\n" "{output.homer_dir}/homerMotifs.all.motifs" >> {output.known_results}
-          cp {output.known_results} {output.motif_summary}
+        if [ -s "{output.known_results}" ]; then
+          cp "{output.known_results}" "{output.motif_summary}"
+        elif [ -s "{output.homer_dir}/homerMotifs.all.motifs" ]; then
+          printf "# HOMER completed, but knownResults.txt is missing.\n" > "{output.known_results}"
+          printf "# Please inspect: %s\n" "{output.homer_dir}/homerMotifs.all.motifs" >> "{output.known_results}"
+          cp "{output.known_results}" "{output.motif_summary}"
         else
           echo "HOMER did not generate expected result files." >&2
           exit 1
@@ -67,6 +66,8 @@ rule summarize_motif_stats:
         site_stats=f"{OUTDIR}/motif/all_samples_site_stats.tsv",
         known_merged=f"{OUTDIR}/motif/all_samples_known_motif_summary.tsv",
         plot=f"{OUTDIR}/motif/all_samples_overview.png"
+    log:
+        "logs/motif/summarize.log"
     params:
         samples=SAMPLES
     conda:

@@ -102,11 +102,10 @@ To minimize storage footprint, intermediate FASTQs produced by fastp and merged 
 - fastp
 - MultiQC
 - CIRI3 (download from https://github.com/gyjames/CIRI3 ; this workflow uses the Java 18 build)
-- CIRI3 companion executable `rMATSexe` (required by CIRI3 `DE_Relative`)
 - Python packages: `pysam`
 - HOMER (`findMotifs.pl`)
 
-All dependencies are provided via the conda environments under `workflow/rules/envs/` (including OpenJDK 18 for CIRI3).
+All dependencies are provided via the conda environments under `workflow/rules/envs/` (including OpenJDK for CIRI3).
 
 ## Installation
 
@@ -133,8 +132,7 @@ Key fields:
 * `reference.fasta`: reference FASTA (used by downstream steps such as CIRI3 support files)
 * `reference.bwa_indexed_fasta`: BWA-indexed FASTA path (BWA sidecar files must already exist with this path as prefix)
 * `reference.gtf`: reference annotation GTF
-* `ciri3.jar`: CIRI3 Java archive
-* `ciri3.root`: optional CIRI3 installation root used to locate `scripts/BSJ_yes.R` and `lib/rmats_deps`; override with `ciri3.bsj_script` or `ciri3.rmats_deps` when needed
+* `ciri3.jar`: CIRI3 Java archive; CIRI3 differential-expression modules are invoked via `java -jar ... DE_BSJ`, `DE_Ratio`, and `DE_Relative`
 * `samples`: mapping of sample name to lists of FASTQs for R1 and R2
 * `threads`: module-level CPU thread settings (configure each module independently; e.g., `threads.homer` for HOMER, `threads.samtools_view` for CIRI3 SAM conversion, `threads.splicing_stats` for splicing summary scripts)
 * `output.keep_bam`: keep STAR/BWA BAM files (`false` by default to save disk)
@@ -176,7 +174,6 @@ reference:
 
 ciri3:
   jar: "/path/to/CIRI3/CIRI3_v1.0.1.jar"
-  root: "/path/to/CIRI3"
 
 samples:
   sampleA:
@@ -257,7 +254,7 @@ Notes:
 * BWA index construction is **not** performed in this workflow; provide prebuilt index files for `reference.bwa_indexed_fasta`.
   Example:
   `bwa index /path/to/genome.fa`
-* CIRI3 `DE_Relative` internally invokes `rMATSexe`. If you see `Cannot run program ".../scripts/rMATSexe": No such file or directory`, install or link `rMATSexe` at the path expected by your CIRI3 Java build.
+* CIRI3 built-in differential-expression modules are called through the Java jar. The workflow does not call `scripts/BSJ_yes.R`, `rMATSexe`, or `lib/rmats_deps` directly.
 
 ## Running the workflow
 

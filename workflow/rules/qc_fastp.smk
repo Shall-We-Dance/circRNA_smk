@@ -1,27 +1,25 @@
 # workflow/rules/qc_fastp.smk
-import os
-
-OUTDIR = config["output"]["dir"]
-
-
-def units(sample):
-    return list(range(len(config["samples"][sample]["R1"])))
-
 
 rule merge_raw_fastq_per_sample:
     input:
-        r1=lambda wc: [config["samples"][wc.sample]["R1"][i] for i in units(wc.sample)],
-        r2=lambda wc: [config["samples"][wc.sample]["R2"][i] for i in units(wc.sample)]
+        r1=lambda wc: config["samples"][wc.sample]["R1"],
+        r2=lambda wc: config["samples"][wc.sample]["R2"]
     output:
         merged_r1=temp(f"{OUTDIR}/tmp/merged_raw/{{sample}}_R1.fastq.gz"),
         merged_r2=temp(f"{OUTDIR}/tmp/merged_raw/{{sample}}_R2.fastq.gz")
+    log:
+        "logs/merge_fastq/{sample}.log"
     threads: int(config["threads"].get("merge_fastq", 2))
+    conda:
+        "envs/qc.yaml"
     shell:
         r"""
         set -euo pipefail
-        mkdir -p $(dirname {output.merged_r1})
-        cat {input.r1} > {output.merged_r1}
-        cat {input.r2} > {output.merged_r2}
+        output_dir=$(dirname "{output.merged_r1}")
+        log_dir=$(dirname "{log}")
+        mkdir -p "$output_dir" "$log_dir"
+        cat {input.r1:q} > "{output.merged_r1}" 2> "{log}"
+        cat {input.r2:q} > "{output.merged_r2}" 2>> "{log}"
         """
 
 
@@ -44,15 +42,18 @@ rule fastp_sample_level:
     shell:
         r"""
         set -euo pipefail
-        mkdir -p $(dirname {output.clean_r1}) $(dirname {output.html}) $(dirname {log})
+        tmp_dir=$(dirname "{output.clean_r1}")
+        html_dir=$(dirname "{output.html}")
+        log_dir=$(dirname "{log}")
+        mkdir -p "$tmp_dir" "$html_dir" "$log_dir"
 
         fastp \
-          -i {input.r1} -I {input.r2} \
-          -o {output.clean_r1} -O {output.clean_r2} \
+          -i "{input.r1}" -I "{input.r2}" \
+          -o "{output.clean_r1}" -O "{output.clean_r2}" \
           --thread {threads} \
           {params.dedup_arg} \
-          --html {output.html} --json {output.json} \
-          > {log} 2>&1
+          --html "{output.html}" --json "{output.json}" \
+          > "{log}" 2>&1
         """
 
 
@@ -66,9 +67,14 @@ rule multiqc:
         "logs/multiqc.log"
     conda:
         "envs/multiqc.yaml"
+    params:
+        outdir=lambda wc, output: os.path.dirname(output.html),
+        qc_dir=lambda wc, output: os.path.dirname(os.path.dirname(output.html))
     shell:
         r"""
         set -euo pipefail
-        mkdir -p $(dirname {output.html}) $(dirname {log})
-        multiqc --force -o {OUTDIR}/qc/multiqc {OUTDIR}/qc {OUTDIR}/star > {log} 2>&1
+        html_dir=$(dirname "{output.html}")
+        log_dir=$(dirname "{log}")
+        mkdir -p "$html_dir" "$log_dir"
+        multiqc --force -o "{params.outdir}" "{params.qc_dir}" > "{log}" 2>&1
         """

@@ -1,112 +1,120 @@
 import csv
 from pathlib import Path
 
-pair = snakemake.params.pair
-group_a = snakemake.params.group_a
-group_b = snakemake.params.group_b
-groups = snakemake.params.groups
-sample_names = list(snakemake.params.sample_names)
 
-selected_samples = list(groups[group_a]) + list(groups[group_b])
-sample_to_class = {sample: group_a for sample in groups[group_a]}
-sample_to_class.update({sample: group_b for sample in groups[group_b]})
+comparison = snakemake.wildcards.comparison
+selected_samples = list(snakemake.params.selected_samples)
+sample_classes = dict(snakemake.params.sample_classes)
 
 input_ciri3_files = [Path(p) for p in snakemake.input.ciri3]
-sample_to_ciri3 = dict(zip(sample_names, input_ciri3_files))
+sample_to_ciri3 = dict(zip(selected_samples, input_ciri3_files))
 
-for sample in selected_samples:
-    if sample not in sample_to_ciri3:
-        raise ValueError(f"Sample '{sample}' required by pair '{pair}' not found in per-sample CIRI3 outputs")
+info_out = Path(snakemake.output.info)
+gene_expression_out = Path(snakemake.output.gene_expression)
+bsj_matrix_out = Path(snakemake.output.bsj_matrix)
+log_path = Path(snakemake.log[0]) if snakemake.log else None
 
 
-def read_tsv(path: Path):
-    with path.open() as fh:
+def log_message(message):
+    if log_path is None:
+        return
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    with log_path.open("a") as fh:
+        fh.write(message + "\n")
+
+
+def read_tsv(path):
+    with Path(path).open() as fh:
         rows = list(csv.reader(fh, delimiter="\t"))
     if not rows:
         raise ValueError(f"Input TSV is empty: {path}")
     return rows[0], rows[1:]
 
 
-# 1) infor.tsv
-infor_out = Path(snakemake.output.infor)
-infor_out.parent.mkdir(parents=True, exist_ok=True)
-
-class_counts = {group_a: 0, group_b: 0}
-with infor_out.open("w", newline="") as fh:
-    writer = csv.writer(fh, delimiter="\t")
-    writer.writerow(["Sample", "Path", "Class", "Num"])
-    for sample in selected_samples:
-        cls = sample_to_class[sample]
-        class_counts[cls] += 1
-        writer.writerow([sample, str(sample_to_ciri3[sample].resolve()), cls, class_counts[cls]])
-
-
-# 2) BSJ matrix subset
-bsj_header, bsj_rows = read_tsv(Path(snakemake.input.bsj_matrix))
-bsj_col_idx = {name: idx for idx, name in enumerate(bsj_header)}
-missing_bsj = [s for s in selected_samples if s not in bsj_col_idx]
-if missing_bsj:
-    raise ValueError(f"Missing selected samples in BSJ matrix header: {missing_bsj}")
-
-bsj_out = Path(snakemake.output.bsj_matrix)
-bsj_out.parent.mkdir(parents=True, exist_ok=True)
-with bsj_out.open("w", newline="") as fh:
-    writer = csv.writer(fh, delimiter="\t")
-    writer.writerow([bsj_header[0]] + selected_samples)
-    for row in bsj_rows:
-        if not row:
-            continue
-        writer.writerow([row[0]] + [row[bsj_col_idx[s]] if bsj_col_idx[s] < len(row) else "0" for s in selected_samples])
-
-
-# 3) Gene expression matrix subset (featureCounts -> Geneid + selected samples)
-gene_counts = Path(snakemake.input.gene_counts)
-gene_expr_out = Path(snakemake.output.gene_expression)
-gene_expr_out.parent.mkdir(parents=True, exist_ok=True)
-
-def normalize_featurecounts_colname(name: str) -> str:
-    """
-    featureCounts sample columns are often full BAM paths:
-      results/star/<sample>/<sample>.Aligned.sortedByCoord.out.bam
-    Normalize those to <sample> so they can match config sample names.
-    """
-    p = Path(name)
-    base = p.name
+def normalize_featurecounts_colname(name):
+    base = Path(name).name
     suffix = ".Aligned.sortedByCoord.out.bam"
     if base.endswith(suffix):
-        return base[: -len(suffix)]
+        return base[:-len(suffix)]
     return base
 
 
-with gene_counts.open() as in_fh, gene_expr_out.open("w", newline="") as out_fh:
-    reader = csv.reader((line for line in in_fh if not line.startswith("#")), delimiter="\t")
-    writer = csv.writer(out_fh, delimiter="\t")
+missing_ciri3 = [sample for sample in selected_samples if sample not in sample_to_ciri3]
+if missing_ciri3:
+    raise ValueError(
+        "Selected samples missing from per-sample CIRI3 inputs for comparison "
+        f"{comparison}: " + ", ".join(missing_ciri3)
+    )
 
-    header = next(reader, None)
-    if not header:
-        raise ValueError(f"FeatureCounts matrix is empty: {gene_counts}")
+info_out.parent.mkdir(parents=True, exist_ok=True)
+with info_out.open("w", newline="") as fh:
+    writer = csv.writer(fh, delimiter="\t")
+    writer.writerow(["Sample", "Path", "Class"])
+    for sample in selected_samples:
+        writer.writerow([
+            sample,
+            str(sample_to_ciri3[sample].resolve()),
+            sample_classes[sample],
+        ])
 
-    col_idx = {name: idx for idx, name in enumerate(header)}
-    normalized_idx = {}
-    for idx, col_name in enumerate(header):
-        norm = normalize_featurecounts_colname(col_name)
-        # keep first match if duplicates appear after normalization
-        if norm not in normalized_idx:
-            normalized_idx[norm] = idx
+bsj_header, bsj_rows = read_tsv(snakemake.input.bsj)
+missing_bsj = [sample for sample in selected_samples if sample not in bsj_header]
+if missing_bsj:
+    raise ValueError(
+        "Selected samples missing from merged BSJ matrix for comparison "
+        f"{comparison}: " + ", ".join(missing_bsj)
+    )
 
-    missing_gene = [s for s in selected_samples if s not in col_idx and s not in normalized_idx]
-    if missing_gene:
-        raise ValueError(f"Missing selected samples in featureCounts header: {missing_gene}")
+keep_idx = [0] + [bsj_header.index(sample) for sample in selected_samples]
+bsj_matrix_out.parent.mkdir(parents=True, exist_ok=True)
+with bsj_matrix_out.open("w", newline="") as fh:
+    writer = csv.writer(fh, delimiter="\t")
+    writer.writerow([bsj_header[i] for i in keep_idx])
+    for row in bsj_rows:
+        padded = row + [""] * (len(bsj_header) - len(row))
+        writer.writerow([padded[i] if padded[i] != "" else "0" for i in keep_idx])
 
+with Path(snakemake.input.featurecounts).open() as fh:
+    raw_lines = [line.rstrip("\n") for line in fh if line.strip()]
+
+fc_lines = [line for line in raw_lines if not line.startswith("#")]
+if len(fc_lines) < 2:
+    raise ValueError(f"featureCounts file appears malformed: {snakemake.input.featurecounts}")
+
+fc_rows = list(csv.reader(fc_lines, delimiter="\t"))
+fc_header = fc_rows[0]
+
+if "Geneid" not in fc_header:
+    raise ValueError("featureCounts header does not contain 'Geneid'.")
+
+geneid_idx = fc_header.index("Geneid")
+sample_to_fc_idx = {}
+count_start_idx = 6
+for idx, col_name in enumerate(fc_header[count_start_idx:], start=count_start_idx):
+    sample_name = normalize_featurecounts_colname(col_name)
+    if sample_name not in sample_to_fc_idx:
+        sample_to_fc_idx[sample_name] = idx
+
+missing_fc = [sample for sample in selected_samples if sample not in sample_to_fc_idx]
+if missing_fc:
+    raise ValueError(
+        "Selected samples missing from featureCounts header for comparison "
+        f"{comparison}: " + ", ".join(missing_fc)
+    )
+
+gene_expression_out.parent.mkdir(parents=True, exist_ok=True)
+with gene_expression_out.open("w", newline="") as fh:
+    writer = csv.writer(fh, delimiter="\t")
     writer.writerow(["Geneid"] + selected_samples)
-
-    geneid_idx = col_idx.get("Geneid", 0)
-    for row in reader:
-        if not row:
-            continue
-        geneid = row[geneid_idx]
-        values = []
+    for row in fc_rows[1:]:
+        padded = row + ["0"] * (len(fc_header) - len(row))
+        out_row = [padded[geneid_idx]]
         for sample in selected_samples:
-            sample_idx = col_idx.get(sample, normalized_idx.get(sample))
-            values.append(row[sample_idx] if sample_idx is not None and sample_idx < len(row) else "0")
-        writer.writerow([geneid] + values)
+            value = padded[sample_to_fc_idx[sample]]
+            out_row.append(value if value != "" else "0")
+        writer.writerow(out_row)
+
+log_message(
+    f"Prepared CIRI3 DE_BSJ inputs for {comparison}: "
+    f"{len(selected_samples)} samples, {len(bsj_rows)} BSJ rows, {len(fc_rows) - 1} genes."
+)

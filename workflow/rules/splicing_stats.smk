@@ -1,7 +1,3 @@
-OUTDIR = config["output"]["dir"]
-SAMPLES = list(config["samples"].keys())
-
-
 rule compute_splicing_site_stats:
     input:
         ciri3=f"{OUTDIR}/ciri3/per_sample/{{sample}}.ciri3",
@@ -13,6 +9,8 @@ rule compute_splicing_site_stats:
         summary=f"{OUTDIR}/splicing/{{sample}}/summary.tsv",
         dist=f"{OUTDIR}/splicing/{{sample}}/distributions.tsv",
         plot=f"{OUTDIR}/splicing/{{sample}}/distribution.png"
+    log:
+        "logs/splicing/{sample}.compute.log"
     threads: int(config["threads"].get("splicing_stats", 2))
     conda:
         "envs/splicing_stats.yaml"
@@ -28,6 +26,8 @@ rule summarize_splicing_site_stats:
         summary=f"{OUTDIR}/splicing/all_samples_summary.tsv",
         distributions=f"{OUTDIR}/splicing/all_samples_distributions.tsv",
         plot=f"{OUTDIR}/splicing/all_samples_overview.png"
+    log:
+        "logs/splicing/summarize.log"
     params:
         samples=SAMPLES
     threads: int(config["threads"].get("splicing_stats", 2))

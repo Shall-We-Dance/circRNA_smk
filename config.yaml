@@ -88,8 +88,6 @@ fastp:
 ciri3:
   # local CIRI3 jar path
   jar: "/path/to/CIRI3_v1.0.1.jar"
-  # optional CIRI3 install root used to locate scripts/BSJ_yes.R and lib/rmats_deps
-  root: "/path/to/CIRI3"
   # CIRI3 main parameters
   Ma: 1
   W: 1

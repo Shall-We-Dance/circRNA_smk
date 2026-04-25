@@ -1,27 +1,21 @@
 # workflow/rules/ciri3.smk
 
-import os
-
-OUTDIR = config["output"]["dir"]
-SAMPLES = list(config["samples"].keys())
-
-
-def maybe_temp(path):
-    return path if KEEP_BAM else temp(path)
-
-
 rule star_bam_index_for_ciri3:
     input:
         bam=f"{OUTDIR}/star/{{sample}}/{{sample}}.Aligned.sortedByCoord.out.bam"
     output:
         bai=maybe_temp(f"{OUTDIR}/star/{{sample}}/{{sample}}.Aligned.sortedByCoord.out.bam.bai")
+    log:
+        "logs/ciri3/{sample}.star_bam_index.log"
     threads: int(config["threads"].get("samtools_index", config["threads"].get("samtools", 1)))
     conda:
         "envs/samtools.yaml"
     shell:
         r"""
         set -euo pipefail
-        samtools index -@ {threads} {input.bam}
+        log_dir=$(dirname "{log}")
+        mkdir -p "$log_dir"
+        samtools index -@ {threads} "{input.bam}" > "{log}" 2>&1
         """
 
 
@@ -46,12 +40,7 @@ rule ciri3_detect_star:
         jar=config["ciri3"]["jar"],
         Ma=int(config.get("ciri3", {}).get("Ma", 1)),
         W=int(config.get("ciri3", {}).get("W", 1)),
-        normalize_script=os.path.join(
-            workflow.basedir,
-            "rules",
-            "scripts",
-            "normalize_ciri3_outputs.py",
-        )
+        normalize_script=CIRI3_NORMALIZE_SCRIPT
     shell:
         r"""
         set -euo pipefail
@@ -105,7 +94,11 @@ rule merge_ciri3_outputs:
         ciri3=f"{OUTDIR}/ciri3/all_samples.ciri3",
         bsj=f"{OUTDIR}/ciri3/all_samples.ciri3.BSJ_Matrix",
         fsj=f"{OUTDIR}/ciri3/all_samples.ciri3.FSJ_Matrix"
+    log:
+        "logs/ciri3/merge_outputs.log"
     params:
         samples=SAMPLES
+    conda:
+        "envs/ciri3.yaml"
     script:
         "scripts/merge_ciri3_outputs.py"

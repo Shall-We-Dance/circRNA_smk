@@ -18,6 +18,8 @@ rule featurecounts_totalrna:
     shell:
         r"""
         set -euo pipefail
-        mkdir -p $(dirname {output.counts}) $(dirname {log})
-        featureCounts -T {threads} -p -a {params.gtf} -o {output.counts} {input.bams} > {log} 2>&1
+        output_dir=$(dirname "{output.counts}")
+        log_dir=$(dirname "{log}")
+        mkdir -p "$output_dir" "$log_dir"
+        featureCounts -T {threads} -p -a "{params.gtf}" -o "{output.counts}" {input.bams:q} > "{log}" 2>&1
         """
