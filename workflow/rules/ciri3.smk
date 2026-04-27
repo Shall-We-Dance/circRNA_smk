@@ -30,9 +30,25 @@ rule fetch_ciri3_release:
           git -C "$repo_dir" remote set-url origin "{params.repo_url}" >> "{log}" 2>&1
           git -C "$repo_dir" fetch --tags --force origin >> "{log}" 2>&1
         elif [ -e "$repo_dir" ]; then
-          echo "CIRI3 install_dir exists but is not a git checkout: $repo_dir" > "{log}"
-          echo "Remove this directory or choose a different ciri3.install_dir." >> "{log}"
-          exit 1
+          if [ -s "{output.jar}" ] && [ -s "{output.bsj_yes}" ]; then
+            echo "Using existing non-git CIRI3 install_dir with required files: $repo_dir" > "{log}"
+            touch "{output.ready}"
+            exit 0
+          fi
+
+          echo "CIRI3 install_dir exists but is not a complete git checkout: $repo_dir" > "{log}"
+          stamp=$(date +%Y%m%d%H%M%S)
+          backup_dir="${{repo_dir}}.stale.${{stamp}}"
+          suffix=0
+          while [ -e "$backup_dir" ]; do
+            suffix=$((suffix + 1))
+            backup_dir="${{repo_dir}}.stale.${{stamp}}.${{suffix}}"
+          done
+          mv "$repo_dir" "$backup_dir"
+          echo "Moved existing CIRI3 install_dir to backup: $backup_dir" >> "{log}"
+          echo "Cloning CIRI3 repository from {params.repo_url} into $repo_dir" >> "{log}"
+          git clone "{params.repo_url}" "$repo_dir" >> "{log}" 2>&1
+          git -C "$repo_dir" fetch --tags --force origin >> "{log}" 2>&1
         else
           echo "Cloning CIRI3 repository from {params.repo_url} into $repo_dir" > "{log}"
           git clone "{params.repo_url}" "$repo_dir" >> "{log}" 2>&1
