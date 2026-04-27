@@ -17,6 +17,28 @@ CIRI3_NORMALIZE_SCRIPT = os.path.join(
 )
 
 
+def _sanitize_path_component(value):
+    allowed = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-")
+    sanitized = "".join(ch if ch in allowed else "_" for ch in str(value))
+    return sanitized.strip("._") or "default"
+
+
+ciri3_cfg = config.get("ciri3", {}) or {}
+if not isinstance(ciri3_cfg, dict):
+    raise ValueError("Top-level ciri3 config must be a mapping.")
+
+CIRI3_REPO_URL = ciri3_cfg.get("repo_url", "https://github.com/gyjames/CIRI3.git")
+CIRI3_REPO_REF = str(ciri3_cfg.get("ref", "v3.0.1"))
+CIRI3_JAR_NAME = ciri3_cfg.get("jar_name", "CIRI3_Java_18.0.1.jar")
+CIRI3_INSTALL_DIR = ciri3_cfg.get(
+    "install_dir",
+    f"{OUTDIR}/resources/ciri3/{_sanitize_path_component(CIRI3_REPO_REF)}",
+)
+CIRI3_READY = os.path.join(CIRI3_INSTALL_DIR, ".snakemake_ready")
+CIRI3_JAR = os.path.join(CIRI3_INSTALL_DIR, CIRI3_JAR_NAME)
+CIRI3_BSJ_YES = os.path.join(CIRI3_INSTALL_DIR, "scripts", "BSJ_yes.R")
+
+
 def maybe_temp(path):
     return path if KEEP_BAM else temp(path)
 

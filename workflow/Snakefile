@@ -63,26 +63,26 @@ rule all:
         # custom BSJ differential expression (DESeq2)
         *(
             [
-                f"{OUTDIR}/deg/bsj/sample_metadata.tsv",
-                f"{OUTDIR}/deg/bsj/all_groups/deseq2_results.tsv",
-                f"{OUTDIR}/deg/bsj/all_groups/heatmap_top50.pdf",
-                f"{OUTDIR}/deg/bsj/all_groups/pca.pdf",
-                f"{OUTDIR}/deg/bsj/all_groups/vst_counts.tsv",
+                f"{OUTDIR}/deg/deseq2/sample_metadata.tsv",
+                f"{OUTDIR}/deg/deseq2/all_groups/deseq2_results.tsv",
+                f"{OUTDIR}/deg/deseq2/all_groups/heatmap_top50.pdf",
+                f"{OUTDIR}/deg/deseq2/all_groups/pca.pdf",
+                f"{OUTDIR}/deg/deseq2/all_groups/vst_counts.tsv",
             ]
             + [
-                f"{OUTDIR}/deg/bsj/pairwise/{comparison}/deseq2_results.tsv"
+                f"{OUTDIR}/deg/deseq2/pairwise/{comparison}/deseq2_results.tsv"
                 for comparison in DEG_COMPARISON_NAMES
             ]
             + [
-                f"{OUTDIR}/deg/bsj/pairwise/{comparison}/volcano.pdf"
+                f"{OUTDIR}/deg/deseq2/pairwise/{comparison}/volcano.pdf"
                 for comparison in DEG_COMPARISON_NAMES
             ]
             + [
-                f"{OUTDIR}/deg/bsj/pairwise/{comparison}/heatmap_top50.pdf"
+                f"{OUTDIR}/deg/deseq2/pairwise/{comparison}/heatmap_top50.pdf"
                 for comparison in DEG_COMPARISON_NAMES
             ]
             + [
-                f"{OUTDIR}/deg/bsj/pairwise/{comparison}/pca.pdf"
+                f"{OUTDIR}/deg/deseq2/pairwise/{comparison}/pca.pdf"
                 for comparison in DEG_COMPARISON_NAMES
             ]
             if DEG_RUN_DESEQ2

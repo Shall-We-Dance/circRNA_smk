@@ -38,14 +38,14 @@ This repository provides a reproducible Snakemake workflow for analyzing circula
   - `results/motif/all_samples_known_motif_summary.tsv`
   - `results/motif/all_samples_overview.png`
 - **BSJ differential expression (optional, DESeq2 + CIRI3 DE modules)**
-  - `results/deg/bsj/sample_metadata.tsv`
-  - `results/deg/bsj/all_groups/deseq2_results.tsv`
-  - `results/deg/bsj/all_groups/heatmap_top50.pdf`
-  - `results/deg/bsj/all_groups/pca.pdf`
-  - `results/deg/bsj/all_groups/vst_counts.tsv`
-  - `results/deg/bsj/pairwise/<CaseGroup>_vs_<ControlGroup>/deseq2_results.tsv`
-  - `results/deg/bsj/pairwise/<CaseGroup>_vs_<ControlGroup>/volcano.pdf`
-  - `results/deg/bsj/pairwise/<CaseGroup>_vs_<ControlGroup>/heatmap_top50.pdf`
+  - `results/deg/deseq2/sample_metadata.tsv`
+  - `results/deg/deseq2/all_groups/deseq2_results.tsv`
+  - `results/deg/deseq2/all_groups/heatmap_top50.pdf`
+  - `results/deg/deseq2/all_groups/pca.pdf`
+  - `results/deg/deseq2/all_groups/vst_counts.tsv`
+  - `results/deg/deseq2/pairwise/<CaseGroup>_vs_<ControlGroup>/deseq2_results.tsv`
+  - `results/deg/deseq2/pairwise/<CaseGroup>_vs_<ControlGroup>/volcano.pdf`
+  - `results/deg/deseq2/pairwise/<CaseGroup>_vs_<ControlGroup>/heatmap_top50.pdf`
   - `results/deg/ciri3/<CaseGroup>_vs_<ControlGroup>/de_bsj/result.txt`
   - `results/deg/ciri3/<CaseGroup>_vs_<ControlGroup>/de_ratio/result.txt`
   - `results/deg/ciri3/<CaseGroup>_vs_<ControlGroup>/de_relative/result.txt`
@@ -101,11 +101,10 @@ To minimize storage footprint, intermediate FASTQs produced by fastp and merged 
 - samtools
 - fastp
 - MultiQC
-- CIRI3 (download from https://github.com/gyjames/CIRI3 ; this workflow uses the Java 18 build)
 - Python packages: `pysam`
 - HOMER (`findMotifs.pl`)
 
-All dependencies are provided via the conda environments under `workflow/rules/envs/` (including OpenJDK for CIRI3).
+All dependencies are provided via the conda environments under `workflow/rules/envs/`. The workflow automatically clones CIRI3 from GitHub and uses the Java 18 build from the checked-out repository.
 
 ## Installation
 
@@ -132,7 +131,9 @@ Key fields:
 * `reference.fasta`: reference FASTA (used by downstream steps such as CIRI3 support files)
 * `reference.bwa_indexed_fasta`: BWA-indexed FASTA path (BWA sidecar files must already exist with this path as prefix)
 * `reference.gtf`: reference annotation GTF
-* `ciri3.jar`: CIRI3 Java archive; CIRI3 differential-expression modules are invoked via `java -jar ... DE_BSJ`, `DE_Ratio`, and `DE_Relative`
+* `ciri3.repo_url`: CIRI3 Git repository to clone automatically (default: `https://github.com/gyjames/CIRI3.git`)
+* `ciri3.ref`: CIRI3 Git tag/branch/commit to check out (default: `v3.0.1`, the official Git tag corresponding to CIRI-3.0.1)
+* `ciri3.install_dir`: optional local checkout directory; by default the checkout is stored under `results/resources/ciri3/<ref>`
 * `samples`: mapping of sample name to lists of FASTQs for R1 and R2
 * `threads`: module-level CPU thread settings (configure each module independently; e.g., `threads.homer` for HOMER, `threads.samtools_view` for CIRI3 SAM conversion, `threads.splicing_stats` for splicing summary scripts)
 * `output.keep_bam`: keep STAR/BWA BAM files (`false` by default to save disk)
@@ -173,7 +174,8 @@ reference:
   gtf: "/path/to/genes.gtf"
 
 ciri3:
-  jar: "/path/to/CIRI3/CIRI3_v1.0.1.jar"
+  repo_url: "https://github.com/gyjames/CIRI3.git"
+  ref: "v3.0.1"
 
 samples:
   sampleA:
@@ -254,7 +256,8 @@ Notes:
 * BWA index construction is **not** performed in this workflow; provide prebuilt index files for `reference.bwa_indexed_fasta`.
   Example:
   `bwa index /path/to/genome.fa`
-* CIRI3 built-in differential-expression modules are called through the Java jar. The workflow does not call `scripts/BSJ_yes.R`, `rMATSexe`, or `lib/rmats_deps` directly.
+* CIRI3 is cloned automatically from the configured Git repository/ref. The Java jar and sibling `scripts/` directory come from the same checkout, which avoids failures caused by downloading only the standalone jar.
+* CIRI3 built-in differential-expression modules are called through the Java jar. The workflow does not call `scripts/BSJ_yes.R`, `rMATSexe`, or `lib/rmats_deps` directly for the primary analysis; failed `DE_BSJ` jobs may replay the official `BSJ_yes.R` command only to capture the otherwise hidden R error in the Snakemake log.
 
 ## Running the workflow
 

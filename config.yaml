@@ -86,8 +86,9 @@ fastp:
     dedup: true
 
 ciri3:
-  # local CIRI3 jar path
-  jar: "/path/to/CIRI3_v1.0.1.jar"
+  # CIRI3 source is cloned automatically; official GitHub tag for CIRI-3.0.1 is v3.0.1
+  repo_url: "https://github.com/gyjames/CIRI3.git"
+  ref: "v3.0.1"
   # CIRI3 main parameters
   Ma: 1
   W: 1
