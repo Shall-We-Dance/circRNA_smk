@@ -233,3 +233,167 @@ rule ciri3_run_de_relative:
 
         test -s "{output.result}" || (echo "DE_Relative failed and did not create output. Exit code: $status" >&2; exit 1)
         """
+
+
+rule ciri3_de_bsj_pairwise_plots:
+    input:
+        result=f"{CIRI3_DE_OUTDIR}/{{comparison}}/de_bsj/result.txt",
+        bsj_matrix=f"{CIRI3_DE_OUTDIR}/{{comparison}}/de_bsj/BSJ_Matrix.txt",
+        ciri3=f"{OUTDIR}/ciri3/all_samples.ciri3"
+    output:
+        heatmap=f"{CIRI3_DE_OUTDIR}/{{comparison}}/de_bsj/heatmap_top50.pdf",
+        pca=f"{CIRI3_DE_OUTDIR}/{{comparison}}/de_bsj/pca.pdf",
+        volcano=f"{CIRI3_DE_OUTDIR}/{{comparison}}/de_bsj/volcano.pdf",
+        volcano_labeled=f"{CIRI3_DE_OUTDIR}/{{comparison}}/de_bsj/volcano_labeled.pdf"
+    wildcard_constraints:
+        comparison=CIRI3_DE_COMPARISON_REGEX
+    params:
+        method="de_bsj",
+        mode="pairwise",
+        comparison=lambda wc: wc.comparison,
+        groups=DEG_GROUPS,
+        comparisons=DEG_COMPARISONS,
+        padj_cutoff=DEG_PADJ_CUTOFF,
+        lfc_cutoff=DEG_LFC_CUTOFF
+    conda:
+        "envs/deg.yaml"
+    log:
+        "logs/ciri3_de/{comparison}.de_bsj.plots.log"
+    script:
+        "scripts/plot_ciri3_deg.R"
+
+
+rule ciri3_de_ratio_pairwise_plots:
+    input:
+        result=f"{CIRI3_DE_OUTDIR}/{{comparison}}/de_ratio/result.txt",
+        bsj_matrix=f"{CIRI3_DE_OUTDIR}/{{comparison}}/de_ratio/BSJ_Matrix.txt",
+        fsj_matrix=f"{CIRI3_DE_OUTDIR}/{{comparison}}/de_ratio/FSJ_Matrix.txt",
+        ciri3=f"{OUTDIR}/ciri3/all_samples.ciri3"
+    output:
+        heatmap=f"{CIRI3_DE_OUTDIR}/{{comparison}}/de_ratio/heatmap_top50.pdf",
+        pca=f"{CIRI3_DE_OUTDIR}/{{comparison}}/de_ratio/pca.pdf",
+        volcano=f"{CIRI3_DE_OUTDIR}/{{comparison}}/de_ratio/volcano.pdf",
+        volcano_labeled=f"{CIRI3_DE_OUTDIR}/{{comparison}}/de_ratio/volcano_labeled.pdf"
+    wildcard_constraints:
+        comparison=CIRI3_DE_COMPARISON_REGEX
+    params:
+        method="de_ratio",
+        mode="pairwise",
+        comparison=lambda wc: wc.comparison,
+        groups=DEG_GROUPS,
+        comparisons=DEG_COMPARISONS,
+        padj_cutoff=DEG_PADJ_CUTOFF,
+        lfc_cutoff=DEG_LFC_CUTOFF
+    conda:
+        "envs/deg.yaml"
+    log:
+        "logs/ciri3_de/{comparison}.de_ratio.plots.log"
+    script:
+        "scripts/plot_ciri3_deg.R"
+
+
+rule ciri3_de_relative_pairwise_plots:
+    input:
+        result=f"{CIRI3_DE_OUTDIR}/{{comparison}}/de_relative/result.txt",
+        bsj_matrix=f"{CIRI3_DE_OUTDIR}/{{comparison}}/de_relative/BSJ_Matrix.txt",
+        ciri3=f"{OUTDIR}/ciri3/all_samples.ciri3"
+    output:
+        heatmap=f"{CIRI3_DE_OUTDIR}/{{comparison}}/de_relative/heatmap_top50.pdf",
+        pca=f"{CIRI3_DE_OUTDIR}/{{comparison}}/de_relative/pca.pdf",
+        volcano=f"{CIRI3_DE_OUTDIR}/{{comparison}}/de_relative/volcano.pdf",
+        volcano_labeled=f"{CIRI3_DE_OUTDIR}/{{comparison}}/de_relative/volcano_labeled.pdf"
+    wildcard_constraints:
+        comparison=CIRI3_DE_COMPARISON_REGEX
+    params:
+        method="de_relative",
+        mode="pairwise",
+        comparison=lambda wc: wc.comparison,
+        groups=DEG_GROUPS,
+        comparisons=DEG_COMPARISONS,
+        padj_cutoff=DEG_PADJ_CUTOFF,
+        lfc_cutoff=DEG_LFC_CUTOFF
+    conda:
+        "envs/deg.yaml"
+    log:
+        "logs/ciri3_de/{comparison}.de_relative.plots.log"
+    script:
+        "scripts/plot_ciri3_deg.R"
+
+
+rule ciri3_de_bsj_all_groups_plots:
+    input:
+        results=expand(
+            f"{CIRI3_DE_OUTDIR}/{{comparison}}/de_bsj/result.txt",
+            comparison=CIRI3_DE_COMPARISON_NAMES,
+        ),
+        bsj_matrix=f"{OUTDIR}/ciri3/all_samples.ciri3.BSJ_Matrix",
+        ciri3=f"{OUTDIR}/ciri3/all_samples.ciri3"
+    output:
+        heatmap=f"{CIRI3_DE_OUTDIR}/all_groups/de_bsj/heatmap_top50.pdf",
+        pca=f"{CIRI3_DE_OUTDIR}/all_groups/de_bsj/pca.pdf"
+    params:
+        method="de_bsj",
+        mode="all_groups",
+        groups=DEG_GROUPS,
+        comparisons=DEG_COMPARISONS,
+        padj_cutoff=DEG_PADJ_CUTOFF,
+        lfc_cutoff=DEG_LFC_CUTOFF
+    conda:
+        "envs/deg.yaml"
+    log:
+        "logs/ciri3_de/all_groups.de_bsj.plots.log"
+    script:
+        "scripts/plot_ciri3_deg.R"
+
+
+rule ciri3_de_ratio_all_groups_plots:
+    input:
+        results=expand(
+            f"{CIRI3_DE_OUTDIR}/{{comparison}}/de_ratio/result.txt",
+            comparison=CIRI3_DE_COMPARISON_NAMES,
+        ),
+        bsj_matrix=f"{OUTDIR}/ciri3/all_samples.ciri3.BSJ_Matrix",
+        fsj_matrix=f"{OUTDIR}/ciri3/all_samples.ciri3.FSJ_Matrix",
+        ciri3=f"{OUTDIR}/ciri3/all_samples.ciri3"
+    output:
+        heatmap=f"{CIRI3_DE_OUTDIR}/all_groups/de_ratio/heatmap_top50.pdf",
+        pca=f"{CIRI3_DE_OUTDIR}/all_groups/de_ratio/pca.pdf"
+    params:
+        method="de_ratio",
+        mode="all_groups",
+        groups=DEG_GROUPS,
+        comparisons=DEG_COMPARISONS,
+        padj_cutoff=DEG_PADJ_CUTOFF,
+        lfc_cutoff=DEG_LFC_CUTOFF
+    conda:
+        "envs/deg.yaml"
+    log:
+        "logs/ciri3_de/all_groups.de_ratio.plots.log"
+    script:
+        "scripts/plot_ciri3_deg.R"
+
+
+rule ciri3_de_relative_all_groups_plots:
+    input:
+        results=expand(
+            f"{CIRI3_DE_OUTDIR}/{{comparison}}/de_relative/result.txt",
+            comparison=CIRI3_DE_COMPARISON_NAMES,
+        ),
+        bsj_matrix=f"{OUTDIR}/ciri3/all_samples.ciri3.BSJ_Matrix",
+        ciri3=f"{OUTDIR}/ciri3/all_samples.ciri3"
+    output:
+        heatmap=f"{CIRI3_DE_OUTDIR}/all_groups/de_relative/heatmap_top50.pdf",
+        pca=f"{CIRI3_DE_OUTDIR}/all_groups/de_relative/pca.pdf"
+    params:
+        method="de_relative",
+        mode="all_groups",
+        groups=DEG_GROUPS,
+        comparisons=DEG_COMPARISONS,
+        padj_cutoff=DEG_PADJ_CUTOFF,
+        lfc_cutoff=DEG_LFC_CUTOFF
+    conda:
+        "envs/deg.yaml"
+    log:
+        "logs/ciri3_de/all_groups.de_relative.plots.log"
+    script:
+        "scripts/plot_ciri3_deg.R"

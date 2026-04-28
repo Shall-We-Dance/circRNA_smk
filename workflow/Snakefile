@@ -78,6 +78,10 @@ rule all:
                 for comparison in DEG_COMPARISON_NAMES
             ]
             + [
+                f"{OUTDIR}/deg/deseq2/pairwise/{comparison}/volcano_labeled.pdf"
+                for comparison in DEG_COMPARISON_NAMES
+            ]
+            + [
                 f"{OUTDIR}/deg/deseq2/pairwise/{comparison}/heatmap_top50.pdf"
                 for comparison in DEG_COMPARISON_NAMES
             ]
@@ -96,6 +100,15 @@ rule all:
                     f"{CIRI3_DE_OUTDIR}/{comparison}/de_bsj/result.txt"
                     for comparison in CIRI3_DE_COMPARISON_NAMES
                 ]
+                + [
+                    f"{CIRI3_DE_OUTDIR}/{comparison}/de_bsj/{plot}.pdf"
+                    for comparison in CIRI3_DE_COMPARISON_NAMES
+                    for plot in ["heatmap_top50", "pca", "volcano", "volcano_labeled"]
+                ]
+                + [
+                    f"{CIRI3_DE_OUTDIR}/all_groups/de_bsj/{plot}.pdf"
+                    for plot in ["heatmap_top50", "pca"]
+                ]
                 if CIRI3_DE_RUN_BSJ
                 else []
             )
@@ -104,6 +117,15 @@ rule all:
                     f"{CIRI3_DE_OUTDIR}/{comparison}/de_ratio/result.txt"
                     for comparison in CIRI3_DE_COMPARISON_NAMES
                 ]
+                + [
+                    f"{CIRI3_DE_OUTDIR}/{comparison}/de_ratio/{plot}.pdf"
+                    for comparison in CIRI3_DE_COMPARISON_NAMES
+                    for plot in ["heatmap_top50", "pca", "volcano", "volcano_labeled"]
+                ]
+                + [
+                    f"{CIRI3_DE_OUTDIR}/all_groups/de_ratio/{plot}.pdf"
+                    for plot in ["heatmap_top50", "pca"]
+                ]
                 if CIRI3_DE_RUN_RATIO
                 else []
             )
@@ -111,6 +133,15 @@ rule all:
                 [
                     f"{CIRI3_DE_OUTDIR}/{comparison}/de_relative/result.txt"
                     for comparison in CIRI3_DE_COMPARISON_NAMES
+                ]
+                + [
+                    f"{CIRI3_DE_OUTDIR}/{comparison}/de_relative/{plot}.pdf"
+                    for comparison in CIRI3_DE_COMPARISON_NAMES
+                    for plot in ["heatmap_top50", "pca", "volcano", "volcano_labeled"]
+                ]
+                + [
+                    f"{CIRI3_DE_OUTDIR}/all_groups/de_relative/{plot}.pdf"
+                    for plot in ["heatmap_top50", "pca"]
                 ]
                 if CIRI3_DE_RUN_RELATIVE
                 else []

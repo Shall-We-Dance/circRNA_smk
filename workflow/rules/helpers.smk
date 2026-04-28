@@ -1,5 +1,6 @@
 # workflow/rules/helpers.smk
 import os
+import re
 
 SAMPLES = list(config["samples"].keys())
 SAMPLE_SET = set(SAMPLES)
@@ -299,6 +300,15 @@ else:
 
 DEG_COMPARISON_NAMES = list(DEG_COMPARISONS.keys())
 CIRI3_DE_COMPARISON_NAMES = DEG_COMPARISON_NAMES
+CIRI3_DE_COMPARISON_REGEX = "|".join(
+    re.escape(name) for name in CIRI3_DE_COMPARISON_NAMES
+) or r"(?!)"
+CIRI3_DE_METHODS = ["de_bsj", "de_ratio", "de_relative"]
+CIRI3_DE_ENABLED_METHODS = (
+    (["de_bsj"] if CIRI3_DE_RUN_BSJ else [])
+    + (["de_ratio"] if CIRI3_DE_RUN_RATIO else [])
+    + (["de_relative"] if CIRI3_DE_RUN_RELATIVE else [])
+)
 
 motif_cfg = config.get("motif", {})
 MOTIF_ENABLED = _as_bool(motif_cfg.get("enabled", True), default=True)

@@ -45,10 +45,16 @@ This repository provides a reproducible Snakemake workflow for analyzing circula
   - `results/deg/deseq2/all_groups/vst_counts.tsv`
   - `results/deg/deseq2/pairwise/<CaseGroup>_vs_<ControlGroup>/deseq2_results.tsv`
   - `results/deg/deseq2/pairwise/<CaseGroup>_vs_<ControlGroup>/volcano.pdf`
+  - `results/deg/deseq2/pairwise/<CaseGroup>_vs_<ControlGroup>/volcano_labeled.pdf`
   - `results/deg/deseq2/pairwise/<CaseGroup>_vs_<ControlGroup>/heatmap_top50.pdf`
+  - `results/deg/deseq2/pairwise/<CaseGroup>_vs_<ControlGroup>/pca.pdf`
   - `results/deg/ciri3/<CaseGroup>_vs_<ControlGroup>/de_bsj/result.txt`
+  - `results/deg/ciri3/<CaseGroup>_vs_<ControlGroup>/de_bsj/{heatmap_top50,pca,volcano,volcano_labeled}.pdf`
   - `results/deg/ciri3/<CaseGroup>_vs_<ControlGroup>/de_ratio/result.txt`
+  - `results/deg/ciri3/<CaseGroup>_vs_<ControlGroup>/de_ratio/{heatmap_top50,pca,volcano,volcano_labeled}.pdf`
   - `results/deg/ciri3/<CaseGroup>_vs_<ControlGroup>/de_relative/result.txt`
+  - `results/deg/ciri3/<CaseGroup>_vs_<ControlGroup>/de_relative/{heatmap_top50,pca,volcano,volcano_labeled}.pdf`
+  - `results/deg/ciri3/all_groups/{de_bsj,de_ratio,de_relative}/{heatmap_top50,pca}.pdf`
 
 ### Intermediate file handling
 To minimize storage footprint, intermediate FASTQs produced by fastp and merged FASTQs are marked as temporary and are removed automatically by Snakemake. In addition, STAR/BWA BAM files are temporary by default (`output.keep_bam: false`) and will be removed after downstream rules finish. Set `output.keep_bam: true` if you want to retain BAM/BAI files. Final deliverables include:
@@ -76,9 +82,10 @@ To minimize storage footprint, intermediate FASTQs produced by fastp and merged 
 6. **BSJ differential expression (optional)**  
    The unified `deg:` block controls both DESeq2 and CIRI3 differential modules:
    - `deg.run_deseq2: true` runs DESeq2 BSJ differential analysis from `all_samples.ciri3.BSJ_Matrix` (overall + pairwise with volcano/heatmap/PCA plots),
-   - `deg.run_de_bsj: true` runs CIRI3 `DE_BSJ` pairwise analysis (with per-pair `infor.tsv`, BSJ matrix subset, and featureCounts-derived gene expression matrix),
-   - `deg.run_de_ratio: true` runs CIRI3 `DE_Ratio` pairwise analysis (with per-pair `infor.tsv`, BSJ subset, and FSJ subset),
-   - `deg.run_de_relative: true` runs CIRI3 `DE_Relative` pairwise analysis (with per-pair `infor.tsv` built from sample CIRI3 result paths).
+   - `deg.run_de_bsj: true` runs CIRI3 `DE_BSJ` pairwise analysis (with per-pair `infor.tsv`, BSJ matrix subset, featureCounts-derived gene expression matrix, and volcano/heatmap/PCA plots),
+   - `deg.run_de_ratio: true` runs CIRI3 `DE_Ratio` pairwise analysis (with per-pair `infor.tsv`, BSJ subset, FSJ subset, and volcano/heatmap/PCA plots),
+   - `deg.run_de_relative: true` runs CIRI3 `DE_Relative` pairwise analysis (with per-pair `infor.tsv` built from sample CIRI3 result paths, plus volcano/heatmap/PCA plots).
+   CIRI3 also writes method-separated all-group summaries under `results/deg/ciri3/all_groups/de_bsj`, `de_ratio`, and `de_relative`, each with `heatmap_top50.pdf` and `pca.pdf`.
    Pairwise comparisons are generated from `deg.groups` in group order. For `conditionX`, `conditionY`, `conditionZ`, outputs are named `conditionY_vs_conditionX`, `conditionZ_vs_conditionY`, and `conditionZ_vs_conditionX`, where the first group is the case group and the second group is the control group.
 
 7. **Splicing-site feature statistics (enabled by default)**  
