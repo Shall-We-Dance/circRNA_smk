@@ -16,6 +16,12 @@ CIRI3_NORMALIZE_SCRIPT = os.path.join(
     "scripts",
     "normalize_ciri3_outputs.py",
 )
+CIRI3_RATIO_RELATIVE_DEG_SCRIPT = os.path.join(
+    workflow.basedir,
+    "rules",
+    "scripts",
+    "compute_ciri3_ratio_relative_deg.R",
+)
 
 
 def _sanitize_path_component(value):

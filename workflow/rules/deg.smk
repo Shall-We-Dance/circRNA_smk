@@ -168,6 +168,8 @@ rule ciri3_run_de_ratio:
         fsj_matrix=f"{CIRI3_DE_OUTDIR}/{{comparison}}/de_ratio/FSJ_Matrix.txt"
     output:
         result=f"{CIRI3_DE_OUTDIR}/{{comparison}}/de_ratio/result.txt"
+    params:
+        finalize_script=CIRI3_RATIO_RELATIVE_DEG_SCRIPT
     conda:
         "envs/ciri3.yaml"
     log:
@@ -178,6 +180,7 @@ rule ciri3_run_de_ratio:
         output_dir=$(dirname "{output.result}")
         log_dir=$(dirname "{log}")
         mkdir -p "$output_dir" "$log_dir"
+        rm -f "{output.result}" "{output.result}_"*
 
         set +e
         java -jar "{input.jar}" DE_Ratio \
@@ -189,11 +192,20 @@ rule ciri3_run_de_ratio:
         status=$?
         set -e
 
-        if [ ! -s "{output.result}" ] && [ -s "{output.result}_Control_Case" ]; then
-          cp "{output.result}_Control_Case" "{output.result}"
+        if [ "$status" -ne 0 ]; then
+          echo "" >> "{log}"
+          echo "CIRI3 DE_Ratio exited with code $status; attempting native finalization from prepared matrices." >> "{log}"
         fi
 
-        test -s "{output.result}" || (echo "DE_Ratio failed and did not create output. Exit code: $status" >&2; exit 1)
+        Rscript "{params.finalize_script}" \
+          --method de_ratio \
+          --info "{input.info}" \
+          --bsj "{input.bsj_matrix}" \
+          --fsj "{input.fsj_matrix}" \
+          --out "{output.result}" \
+          >> "{log}" 2>&1
+
+        test -s "{output.result}" || (echo "DE_Ratio finalization failed and did not create output. CIRI3 exit code: $status" >&2; exit 1)
         """
 
 
@@ -206,6 +218,8 @@ rule ciri3_run_de_relative:
         circ_gene=f"{CIRI3_DE_OUTDIR}/{{comparison}}/de_relative/circ_Gene.txt"
     output:
         result=f"{CIRI3_DE_OUTDIR}/{{comparison}}/de_relative/result.txt"
+    params:
+        finalize_script=CIRI3_RATIO_RELATIVE_DEG_SCRIPT
     conda:
         "envs/ciri3.yaml"
     log:
@@ -216,6 +230,7 @@ rule ciri3_run_de_relative:
         output_dir=$(dirname "{output.result}")
         log_dir=$(dirname "{log}")
         mkdir -p "$output_dir" "$log_dir"
+        rm -f "{output.result}" "{output.result}_"*
 
         set +e
         java -jar "{input.jar}" DE_Relative \
@@ -227,11 +242,20 @@ rule ciri3_run_de_relative:
         status=$?
         set -e
 
-        if [ ! -s "{output.result}" ] && [ -s "{output.result}_Control_Case" ]; then
-          cp "{output.result}_Control_Case" "{output.result}"
+        if [ "$status" -ne 0 ]; then
+          echo "" >> "{log}"
+          echo "CIRI3 DE_Relative exited with code $status; attempting native finalization from prepared matrices." >> "{log}"
         fi
 
-        test -s "{output.result}" || (echo "DE_Relative failed and did not create output. Exit code: $status" >&2; exit 1)
+        Rscript "{params.finalize_script}" \
+          --method de_relative \
+          --info "{input.info}" \
+          --bsj "{input.bsj_matrix}" \
+          --circ-gene "{input.circ_gene}" \
+          --out "{output.result}" \
+          >> "{log}" 2>&1
+
+        test -s "{output.result}" || (echo "DE_Relative finalization failed and did not create output. CIRI3 exit code: $status" >&2; exit 1)
         """
 
 
