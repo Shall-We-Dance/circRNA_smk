@@ -65,7 +65,10 @@ rule summarize_motif_stats:
     output:
         site_stats=f"{OUTDIR}/motif/all_samples_site_stats.tsv",
         known_merged=f"{OUTDIR}/motif/all_samples_known_motif_summary.tsv",
-        plot=f"{OUTDIR}/motif/all_samples_overview.png"
+        homer_summary=f"{OUTDIR}/motif/all_samples_homer_summary.tsv",
+        top_motifs=f"{OUTDIR}/motif/all_samples_top_known_motifs.tsv",
+        plot=f"{OUTDIR}/motif/all_samples_overview.png",
+        heatmap=f"{OUTDIR}/motif/all_samples_known_motif_heatmap.png"
     log:
         "logs/motif/summarize.log"
     params:

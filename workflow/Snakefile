@@ -32,9 +32,11 @@ rule all:
         *expand(f"{OUTDIR}/splicing/{{sample}}/circ_splice_sites.tsv", sample=SAMPLES),
         *expand(f"{OUTDIR}/splicing/{{sample}}/summary.tsv", sample=SAMPLES),
         *expand(f"{OUTDIR}/splicing/{{sample}}/distributions.tsv", sample=SAMPLES),
+        *expand(f"{OUTDIR}/splicing/{{sample}}/alternative_back_splicing.tsv", sample=SAMPLES),
         *expand(f"{OUTDIR}/splicing/{{sample}}/distribution.png", sample=SAMPLES),
         f"{OUTDIR}/splicing/all_samples_summary.tsv",
         f"{OUTDIR}/splicing/all_samples_distributions.tsv",
+        f"{OUTDIR}/splicing/all_samples_alternative_back_splicing.tsv",
         f"{OUTDIR}/splicing/all_samples_overview.png",
 
         # motif outputs
@@ -51,7 +53,10 @@ rule all:
                 ),
                 f"{OUTDIR}/motif/all_samples_site_stats.tsv",
                 f"{OUTDIR}/motif/all_samples_known_motif_summary.tsv",
+                f"{OUTDIR}/motif/all_samples_homer_summary.tsv",
+                f"{OUTDIR}/motif/all_samples_top_known_motifs.tsv",
                 f"{OUTDIR}/motif/all_samples_overview.png",
+                f"{OUTDIR}/motif/all_samples_known_motif_heatmap.png",
             ]
             if MOTIF_ENABLED
             else []

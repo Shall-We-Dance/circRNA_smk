@@ -9,11 +9,14 @@ import matplotlib.pyplot as plt
 
 summary_files = [Path(p) for p in snakemake.input.summaries]
 dist_files = [Path(p) for p in snakemake.input.distributions]
+abs_files = [Path(p) for p in snakemake.input.abs_events]
 samples = list(snakemake.params.samples)
 
 summary_out = Path(snakemake.output.summary)
 dists_out = Path(snakemake.output.distributions)
+abs_out = Path(snakemake.output.abs_events)
 plot_out = Path(snakemake.output.plot)
+
 
 summary_rows = []
 for path in summary_files:
@@ -46,6 +49,50 @@ with dists_out.open("w", newline="") as fh:
     for row in dist_rows:
         writer.writerow(row)
 
+abs_rows = []
+abs_fieldnames = []
+for path in abs_files:
+    with path.open() as fh:
+        reader = csv.DictReader(fh, delimiter="\t")
+        if reader.fieldnames:
+            for fieldname in reader.fieldnames:
+                if fieldname not in abs_fieldnames:
+                    abs_fieldnames.append(fieldname)
+        for row in reader:
+            abs_rows.append(row)
+
+if not abs_fieldnames:
+    abs_fieldnames = [
+        "sample",
+        "event_type",
+        "event_id",
+        "circRNA_ID",
+        "chrom",
+        "strand",
+        "gene_id",
+        "circRNA_type",
+        "bsj_start",
+        "bsj_end",
+        "bsj_5p_site",
+        "bsj_3p_site",
+        "shared_back_splice_site",
+        "alternative_back_splice_site",
+        "bsj_count",
+        "fsj_count",
+        "junction_ratio",
+        "event_bsj_total",
+        "site_count",
+        "pcu",
+        "rank_by_bsj",
+        "splice_site_class",
+    ]
+
+with abs_out.open("w", newline="") as fh:
+    writer = csv.DictWriter(fh, fieldnames=abs_fieldnames, delimiter="\t")
+    writer.writeheader()
+    for row in abs_rows:
+        writer.writerow(row)
+
 
 def metric_map(metric_name):
     m = {}
@@ -58,25 +105,30 @@ def metric_map(metric_name):
     return m
 
 
-n_circ = metric_map("n_circRNAs")
-med_ratio = metric_map("median_ratio")
-canonical_fraction = metric_map("canonical_GU_AG_fraction")
+def dist_fraction_map(feature_name, bins):
+    values = {s: {b: 0.0 for b in bins} for s in samples}
+    for row in dist_rows:
+        if row["feature"] != feature_name:
+            continue
+        sample = row["sample"]
+        b = row["bin"]
+        if sample not in values:
+            values[sample] = {x: 0.0 for x in bins}
+        if b not in values[sample]:
+            values[sample][b] = 0.0
+        try:
+            values[sample][b] = float(row["fraction"])
+        except ValueError:
+            values[sample][b] = 0.0
+    return values
 
-ratio_rows = [r for r in dist_rows if r["feature"] == "bsj_fsj_ratio"]
-ratio_bins = sorted({r["bin"] for r in ratio_rows})
 
-ratio_fraction = {s: {b: 0.0 for b in ratio_bins} for s in samples}
-for row in ratio_rows:
-    sample = row["sample"]
-    b = row["bin"]
-    if sample not in ratio_fraction:
-        ratio_fraction[sample] = {x: 0.0 for x in ratio_bins}
-    try:
-        ratio_fraction[sample][b] = float(row["fraction"])
-    except ValueError:
-        ratio_fraction[sample][b] = 0.0
+bsj_detected = metric_map("n_bsj_gt_0")
+total_bsj = metric_map("total_bsj_reads")
+med_junction_ratio = metric_map("median_junction_ratio")
+n_a5bs = metric_map("n_a5bs_events")
+n_a3bs = metric_map("n_a3bs_events")
 
-class_rows = [r for r in dist_rows if r["feature"] == "splice_site_class"]
 class_bins = [
     "canonical_GU-AG",
     "semi_canonical_GC-AG",
@@ -84,53 +136,111 @@ class_bins = [
     "non_canonical",
     "unknown",
 ]
-class_fraction = {s: {b: 0.0 for b in class_bins} for s in samples}
-for row in class_rows:
-    sample = row["sample"]
-    b = row["bin"]
-    if b not in class_bins:
-        continue
-    try:
-        class_fraction[sample][b] = float(row["fraction"])
-    except ValueError:
-        class_fraction[sample][b] = 0.0
+class_fraction = dist_fraction_map("splice_site_class", class_bins)
 
-fig, axes = plt.subplots(1, 4, figsize=(20, 4.5))
+abs_class_bins = ["no_abs", "A5BS_only", "A3BS_only", "A5BS_and_A3BS"]
+abs_class_fraction = dist_fraction_map("abs_class", abs_class_bins)
 
-xs = list(range(len(samples)))
-axes[0].bar(xs, [n_circ.get(s, 0.0) for s in samples], color="#55A868")
-axes[0].set_xticks(xs)
-axes[0].set_xticklabels(samples, rotation=45, ha="right")
-axes[0].set_ylabel("count")
-axes[0].set_title("Detected circRNAs")
 
-axes[1].bar(xs, [med_ratio.get(s, 0.0) for s in samples], color="#C44E52")
-axes[1].set_xticks(xs)
-axes[1].set_xticklabels(samples, rotation=45, ha="right")
-axes[1].set_ylabel("median (BSJ+1)/(FSJ+1)")
-axes[1].set_title("Median BSJ/FSJ ratio")
+def clean_axis(ax, grid_axis="x"):
+    ax.grid(axis=grid_axis, color="#E6E6E6", linewidth=0.8)
+    ax.set_axisbelow(True)
+    for side in ("top", "right"):
+        ax.spines[side].set_visible(False)
 
-axes[2].bar(xs, [canonical_fraction.get(s, 0.0) for s in samples], color="#4C72B0")
-axes[2].set_xticks(xs)
-axes[2].set_xticklabels(samples, rotation=45, ha="right")
-axes[2].set_ylabel("fraction")
-axes[2].set_ylim(0, 1)
-axes[2].set_title("Canonical GU-AG fraction")
 
-bottom = [0.0 for _ in samples]
-colors = plt.cm.Blues([0.35 + 0.55 * i / max(len(class_bins), 1) for i in range(len(class_bins))])
-for color, b in zip(colors, class_bins):
-    values = [class_fraction.get(s, {}).get(b, 0.0) for s in samples]
-    axes[3].bar(xs, values, bottom=bottom, label=b, color=color)
-    bottom = [x + y for x, y in zip(bottom, values)]
-axes[3].set_xticks(xs)
-axes[3].set_xticklabels(samples, rotation=45, ha="right")
-axes[3].set_ylim(0, 1)
-axes[3].set_ylabel("fraction")
-axes[3].set_title("Splice-site class composition")
-axes[3].legend(fontsize=7, title="site class", loc="upper left", bbox_to_anchor=(1.02, 1.0))
+def horizontal_metric(ax, values, title, xlabel, color, xmax=None):
+    y = list(range(len(samples)))
+    ax.barh(y, values, color=color)
+    ax.set_yticks(y)
+    ax.set_yticklabels(samples, fontsize=8)
+    ax.invert_yaxis()
+    if xmax is not None:
+        ax.set_xlim(0, xmax)
+    ax.set_xlabel(xlabel)
+    ax.set_title(title)
+    clean_axis(ax)
 
-fig.tight_layout()
+
+def stacked_horizontal(ax, fraction_map, bins, labels, colors, title):
+    y = list(range(len(samples)))
+    left = [0.0 for _ in samples]
+    for b, label, color in zip(bins, labels, colors):
+        values = [fraction_map.get(s, {}).get(b, 0.0) for s in samples]
+        ax.barh(y, values, left=left, label=label, color=color)
+        left = [x + v for x, v in zip(left, values)]
+    ax.set_yticks(y)
+    ax.set_yticklabels(samples, fontsize=8)
+    ax.invert_yaxis()
+    ax.set_xlim(0, 1)
+    ax.set_xlabel("fraction")
+    ax.set_title(title)
+    ax.legend(fontsize=7, loc="lower center", bbox_to_anchor=(0.5, -0.34), ncol=2)
+    clean_axis(ax)
+
+
+fig_height = max(8.5, 3.5 + 0.42 * len(samples))
+fig, axes = plt.subplots(2, 3, figsize=(18, fig_height))
+axes = axes.flatten()
+fig.suptitle("Back-splicing overview", fontsize=14, fontweight="bold")
+
+horizontal_metric(
+    axes[0],
+    [bsj_detected.get(s, 0.0) for s in samples],
+    "BSJ-supported circRNAs",
+    "count",
+    "#4E79A7",
+)
+
+horizontal_metric(
+    axes[1],
+    [total_bsj.get(s, 0.0) for s in samples],
+    "Total BSJ reads",
+    "reads",
+    "#76B7B2",
+)
+
+horizontal_metric(
+    axes[2],
+    [med_junction_ratio.get(s, 0.0) for s in samples],
+    "Median junction ratio",
+    "2*BSJ/(2*BSJ+FSJ)",
+    "#59A14F",
+    xmax=1,
+)
+
+y = list(range(len(samples)))
+a5_values = [n_a5bs.get(s, 0.0) for s in samples]
+a3_values = [n_a3bs.get(s, 0.0) for s in samples]
+axes[3].barh(y, a5_values, color="#F28E2B", label="A5BS")
+axes[3].barh(y, a3_values, left=a5_values, color="#E15759", label="A3BS")
+axes[3].set_yticks(y)
+axes[3].set_yticklabels(samples, fontsize=8)
+axes[3].invert_yaxis()
+axes[3].set_xlabel("event count")
+axes[3].set_title("Alternative back-splicing events")
+axes[3].legend(fontsize=8)
+clean_axis(axes[3])
+
+stacked_horizontal(
+    axes[4],
+    class_fraction,
+    class_bins,
+    ["GU-AG", "GC-AG", "AU-AC", "non-canonical", "unknown"],
+    ["#4E79A7", "#76B7B2", "#F28E2B", "#E15759", "#BAB0AC"],
+    "Splice-site class composition",
+)
+
+stacked_horizontal(
+    axes[5],
+    abs_class_fraction,
+    abs_class_bins,
+    ["no ABS", "A5BS only", "A3BS only", "A5BS+A3BS"],
+    ["#D0D0D0", "#F28E2B", "#E15759", "#9467BD"],
+    "ABS circRNA composition",
+)
+
+fig.tight_layout(rect=[0, 0.03, 1, 0.95])
 plot_out.parent.mkdir(parents=True, exist_ok=True)
 fig.savefig(plot_out, dpi=150, bbox_inches="tight")
 plt.close(fig)

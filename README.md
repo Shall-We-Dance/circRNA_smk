@@ -27,16 +27,21 @@ This repository provides a reproducible Snakemake workflow for analyzing circula
   - `results/splicing/<sample>/circ_splice_sites.tsv`
   - `results/splicing/<sample>/summary.tsv`
   - `results/splicing/<sample>/distributions.tsv`
+  - `results/splicing/<sample>/alternative_back_splicing.tsv`
   - `results/splicing/<sample>/distribution.png`
   - `results/splicing/all_samples_summary.tsv`
   - `results/splicing/all_samples_distributions.tsv`
+  - `results/splicing/all_samples_alternative_back_splicing.tsv`
   - `results/splicing/all_samples_overview.png`
   - `results/motif/<sample>/bsj_sites.tsv`
   - `results/motif/<sample>/bsj_motif_summary.tsv` (copied from HOMER `knownResults.txt`)
   - `results/motif/<sample>/homer/` (full HOMER output directory)
   - `results/motif/all_samples_site_stats.tsv`
   - `results/motif/all_samples_known_motif_summary.tsv`
+  - `results/motif/all_samples_homer_summary.tsv`
+  - `results/motif/all_samples_top_known_motifs.tsv`
   - `results/motif/all_samples_overview.png`
+  - `results/motif/all_samples_known_motif_heatmap.png`
 - **BSJ differential expression (optional, DESeq2 + CIRI3 DE modules)**
   - `results/deg/deseq2/sample_metadata.tsv`
   - `results/deg/deseq2/all_groups/deseq2_results.tsv`
@@ -88,8 +93,8 @@ To minimize storage footprint, intermediate FASTQs produced by fastp and merged 
    CIRI3 also writes method-separated all-group summaries under `results/deg/ciri3/all_groups/de_bsj`, `de_ratio`, and `de_relative`, each with `heatmap_top50.pdf` and `pca.pdf`.
    Pairwise comparisons are generated from `deg.groups` in group order. For `conditionX`, `conditionY`, `conditionZ`, outputs are named `conditionY_vs_conditionX`, `conditionZ_vs_conditionY`, and `conditionZ_vs_conditionX`, where the first group is the case group and the second group is the control group.
 
-7. **Splicing-site feature statistics (enabled by default)**  
-   The workflow computes per-sample circRNA splicing-site feature tables using each sample's CIRI3 BSJ/FSJ matrices plus the reference genome FASTA. It reports BSJ/FSJ counts, BSJ-vs-FSJ ratio, BSJ span, and splice-site dinucleotide classes (canonical `GU-AG`, semi-canonical `GC-AG`, minor `AU-AC`, non-canonical, unknown), with per-sample distribution plots, then merges all samples into unified summary/distribution tables and an overview figure.
+7. **Splicing-site and back-splicing feature statistics (enabled by default)**
+   The workflow computes per-sample circRNA splicing-site feature tables using each sample's CIRI3 BSJ/FSJ matrices plus the reference genome FASTA. It reports BSJ/FSJ counts, CIRI/CIRIquant-style junction ratio (`2 * BSJ / (2 * BSJ + FSJ)`), BSJ span, CIRI3 metadata, and splice-site dinucleotide classes (canonical `GU-AG`, semi-canonical `GC-AG`, minor `AU-AC`, non-canonical, unknown). It also identifies strand-aware alternative back-splicing (ABS) events from BSJs that share one back-splice site but use alternative partner sites: A5BS shares the 3' back-splice site and varies the 5' site, while A3BS shares the 5' site and varies the 3' site. Each ABS member is annotated with event-level BSJ support, site count, rank, and Percent Circularized-site Usage (PCU = member BSJ / event BSJ total). Per-sample plots are merged into unified summary/distribution/ABS tables and an overview figure.
 
 8. **BSJ motif analysis (optional, enabled by default)**  
    The workflow exports BSJ donor/acceptor sequence windows for each sample into `results/motif/<sample>/bsj_sites.tsv` and `results/motif/<sample>/bsj_sites.fa`, then runs HOMER `findMotifs.pl` per sample. It also performs all-sample motif summary statistics/plots. Outputs include:
@@ -98,7 +103,10 @@ To minimize storage footprint, intermediate FASTQs produced by fastp and merged 
    - `results/motif/<sample>/homer/` (full HOMER result directory),
    - `results/motif/all_samples_site_stats.tsv`,
    - `results/motif/all_samples_known_motif_summary.tsv`,
-   - `results/motif/all_samples_overview.png`.
+   - `results/motif/all_samples_homer_summary.tsv` (per-sample HOMER summary with significant motif counts and each sample's top motif),
+   - `results/motif/all_samples_top_known_motifs.tsv` (motif-level recurrence/significance summary across samples),
+   - `results/motif/all_samples_overview.png`,
+   - `results/motif/all_samples_known_motif_heatmap.png`.
 
 ## Requirements
 
