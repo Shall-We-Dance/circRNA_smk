@@ -30,26 +30,6 @@ def _sanitize_path_component(value):
     return sanitized.strip("._") or "default"
 
 
-ciri3_cfg = config.get("ciri3", {}) or {}
-if not isinstance(ciri3_cfg, dict):
-    raise ValueError("Top-level ciri3 config must be a mapping.")
-
-CIRI3_REPO_URL = ciri3_cfg.get("repo_url", "https://github.com/gyjames/CIRI3.git")
-CIRI3_REPO_REF = str(ciri3_cfg.get("ref", "v3.0.1"))
-CIRI3_JAR_NAME = ciri3_cfg.get("jar_name", "CIRI3_Java_18.0.1.jar")
-CIRI3_INSTALL_DIR = ciri3_cfg.get(
-    "install_dir",
-    f"{OUTDIR}/resources/ciri3/{_sanitize_path_component(CIRI3_REPO_REF)}",
-)
-CIRI3_READY = os.path.join(CIRI3_INSTALL_DIR, ".snakemake_ready")
-CIRI3_JAR = os.path.join(CIRI3_INSTALL_DIR, CIRI3_JAR_NAME)
-CIRI3_BSJ_YES = os.path.join(CIRI3_INSTALL_DIR, "scripts", "BSJ_yes.R")
-
-
-def maybe_temp(path):
-    return path if KEEP_BAM else temp(path)
-
-
 def _as_bool(value, default=False):
     if value is None:
         return default
@@ -94,6 +74,227 @@ def _numeric_config(cfg, key, default, cast, label, minimum=None, maximum=None, 
         if not inclusive_max and parsed >= maximum:
             raise ValueError(f"{label} must be < {maximum}; got {parsed}.")
     return parsed
+
+
+ciri3_cfg = config.get("ciri3", {}) or {}
+if not isinstance(ciri3_cfg, dict):
+    raise ValueError("Top-level ciri3 config must be a mapping.")
+
+CIRI3_REPO_URL = ciri3_cfg.get("repo_url", "https://github.com/gyjames/CIRI3.git")
+CIRI3_REPO_REF = str(ciri3_cfg.get("ref", "v3.0.1"))
+CIRI3_JAR_NAME = ciri3_cfg.get("jar_name", "CIRI3_Java_18.0.1.jar")
+CIRI3_INSTALL_DIR = ciri3_cfg.get(
+    "install_dir",
+    f"{OUTDIR}/resources/ciri3/{_sanitize_path_component(CIRI3_REPO_REF)}",
+)
+CIRI3_READY = os.path.join(CIRI3_INSTALL_DIR, ".snakemake_ready")
+CIRI3_JAR = os.path.join(CIRI3_INSTALL_DIR, CIRI3_JAR_NAME)
+CIRI3_BSJ_YES = os.path.join(CIRI3_INSTALL_DIR, "scripts", "BSJ_yes.R")
+
+rmats_cfg = config.get("rmats_turbo", {}) or {}
+if not isinstance(rmats_cfg, dict):
+    raise ValueError("Top-level rmats_turbo config must be a mapping.")
+
+RMATS_ENABLED = _get_bool(rmats_cfg, "enabled", False)
+RMATS_REPO_URL = rmats_cfg.get("repo_url", "https://github.com/Xinglab/rmats-turbo.git")
+RMATS_REPO_REF = str(rmats_cfg.get("ref", "v4.3.0"))
+RMATS_INSTALL_DIR = rmats_cfg.get(
+    "install_dir",
+    f"{OUTDIR}/resources/rmats_turbo/{_sanitize_path_component(RMATS_REPO_REF)}",
+)
+RMATS_READY = os.path.join(RMATS_INSTALL_DIR, ".snakemake_ready")
+RMATS_SCRIPT = os.path.join(RMATS_INSTALL_DIR, "rmats.py")
+RMATS_EVENT_TYPES = [str(event_type) for event_type in rmats_cfg.get(
+    "event_types",
+    ["SE", "A5SS", "A3SS", "MXE", "RI"],
+)]
+RMATS_VALID_EVENT_TYPES = {"SE", "A5SS", "A3SS", "MXE", "RI"}
+unknown_rmats_event_types = sorted(set(RMATS_EVENT_TYPES) - RMATS_VALID_EVENT_TYPES)
+if unknown_rmats_event_types:
+    raise ValueError(
+        "rmats_turbo.event_types contains unsupported event type(s): "
+        + ", ".join(unknown_rmats_event_types)
+        + ". Valid event types are: A3SS, A5SS, MXE, RI, SE."
+    )
+RMATS_EVENT_TYPES = [
+    event_type
+    for event_type in ["SE", "A5SS", "A3SS", "MXE", "RI"]
+    if event_type in set(RMATS_EVENT_TYPES)
+]
+RMATS_EVENT_TYPE_REGEX = "|".join(RMATS_EVENT_TYPES) or r"(?!)"
+RMATS_COUNT_TYPES = [str(count_type).upper() for count_type in rmats_cfg.get(
+    "count_types",
+    ["JC", "JCEC"],
+)]
+RMATS_VALID_COUNT_TYPES = {"JC", "JCEC"}
+unknown_rmats_count_types = sorted(set(RMATS_COUNT_TYPES) - RMATS_VALID_COUNT_TYPES)
+if unknown_rmats_count_types:
+    raise ValueError(
+        "rmats_turbo.count_types contains unsupported count type(s): "
+        + ", ".join(unknown_rmats_count_types)
+        + ". Valid count types are: JC, JCEC."
+    )
+RMATS_COUNT_TYPES = [
+    count_type for count_type in ["JC", "JCEC"] if count_type in set(RMATS_COUNT_TYPES)
+]
+RMATS_COUNT_TYPE_REGEX = "|".join(RMATS_COUNT_TYPES) or r"(?!)"
+RMATS_READ_TYPE = str(rmats_cfg.get("read_type", "paired"))
+if RMATS_READ_TYPE not in {"paired", "single"}:
+    raise ValueError("rmats_turbo.read_type must be either 'paired' or 'single'.")
+RMATS_LIB_TYPE = str(rmats_cfg.get("lib_type", "fr-unstranded"))
+if RMATS_LIB_TYPE not in {"fr-unstranded", "fr-firststrand", "fr-secondstrand"}:
+    raise ValueError(
+        "rmats_turbo.lib_type must be one of: fr-unstranded, fr-firststrand, fr-secondstrand."
+    )
+RMATS_READ_LENGTH = _numeric_config(
+    rmats_cfg,
+    "read_length",
+    150,
+    int,
+    "rmats_turbo.read_length",
+    minimum=1,
+)
+RMATS_TASK = str(rmats_cfg.get("task", "both"))
+if RMATS_TASK not in {"prep", "post", "both", "inte", "stat"}:
+    raise ValueError("rmats_turbo.task must be one of: prep, post, both, inte, stat.")
+RMATS_VARIABLE_READ_LENGTH = _get_bool(rmats_cfg, "variable_read_length", True)
+RMATS_ALLOW_CLIPPING = _get_bool(rmats_cfg, "allow_clipping", False)
+RMATS_NOVEL_SS = _get_bool(rmats_cfg, "novel_splice_sites", False)
+RMATS_PAIRED_STATS = _get_bool(rmats_cfg, "paired_stats", False)
+RMATS_STATOFF = _get_bool(rmats_cfg, "statoff", False)
+RMATS_INDIVIDUAL_COUNTS = _get_bool(rmats_cfg, "individual_counts", False)
+RMATS_EXTRA_ARGS = str(rmats_cfg.get("extra_args", "") or "")
+
+sashimi_cfg = config.get("sashimi", {}) or {}
+if not isinstance(sashimi_cfg, dict):
+    raise ValueError("Top-level sashimi config must be a mapping.")
+
+SASHIMI_ENABLED = _get_bool(sashimi_cfg, "enabled", False)
+SASHIMI_COUNT_TYPE = str(sashimi_cfg.get("count_type", "JC")).upper()
+if SASHIMI_COUNT_TYPE not in RMATS_VALID_COUNT_TYPES:
+    raise ValueError("sashimi.count_type must be either 'JC' or 'JCEC'.")
+if SASHIMI_COUNT_TYPE not in RMATS_COUNT_TYPES:
+    RMATS_COUNT_TYPES.append(SASHIMI_COUNT_TYPE)
+    RMATS_COUNT_TYPES = [
+        count_type for count_type in ["JC", "JCEC"] if count_type in set(RMATS_COUNT_TYPES)
+    ]
+    RMATS_COUNT_TYPE_REGEX = "|".join(RMATS_COUNT_TYPES) or r"(?!)"
+RMATS2SASHIMI_REPO_URL = sashimi_cfg.get(
+    "repo_url",
+    "https://github.com/Xinglab/rmats2sashimiplot.git",
+)
+RMATS2SASHIMI_REPO_REF = str(sashimi_cfg.get("ref", "v3.0.0"))
+RMATS2SASHIMI_INSTALL_DIR = sashimi_cfg.get(
+    "install_dir",
+    f"{OUTDIR}/resources/rmats2sashimiplot/{_sanitize_path_component(RMATS2SASHIMI_REPO_REF)}",
+)
+RMATS2SASHIMI_READY = os.path.join(RMATS2SASHIMI_INSTALL_DIR, ".snakemake_ready")
+RMATS2SASHIMI_SCRIPT = os.path.join(
+    RMATS2SASHIMI_INSTALL_DIR,
+    "src",
+    "rmats2sashimiplot",
+    "rmats2sashimiplot.py",
+)
+SASHIMI_FDR_CUTOFF = _numeric_config(
+    sashimi_cfg,
+    "fdr_cutoff",
+    0.05,
+    float,
+    "sashimi.fdr_cutoff",
+    minimum=0,
+    maximum=1,
+)
+SASHIMI_PVALUE_CUTOFF = _numeric_config(
+    sashimi_cfg,
+    "pvalue_cutoff",
+    1.0,
+    float,
+    "sashimi.pvalue_cutoff",
+    minimum=0,
+    maximum=1,
+)
+SASHIMI_INC_DIFF_CUTOFF = _numeric_config(
+    sashimi_cfg,
+    "inc_diff_cutoff",
+    0.1,
+    float,
+    "sashimi.inc_diff_cutoff",
+    minimum=0,
+)
+SASHIMI_MAX_EVENTS = _numeric_config(
+    sashimi_cfg,
+    "max_events_per_comparison_type",
+    0,
+    int,
+    "sashimi.max_events_per_comparison_type",
+    minimum=0,
+)
+SASHIMI_MIN_COUNTS = _numeric_config(
+    sashimi_cfg,
+    "min_counts",
+    0,
+    int,
+    "sashimi.min_counts",
+    minimum=0,
+)
+SASHIMI_EXON_SCALE = _numeric_config(
+    sashimi_cfg,
+    "exon_s",
+    1,
+    int,
+    "sashimi.exon_s",
+    minimum=1,
+)
+SASHIMI_INTRON_SCALE = _numeric_config(
+    sashimi_cfg,
+    "intron_s",
+    5,
+    int,
+    "sashimi.intron_s",
+    minimum=1,
+)
+SASHIMI_FONT_SIZE = _numeric_config(
+    sashimi_cfg,
+    "font_size",
+    8,
+    int,
+    "sashimi.font_size",
+    minimum=1,
+)
+SASHIMI_FIG_WIDTH = _numeric_config(
+    sashimi_cfg,
+    "fig_width",
+    8,
+    float,
+    "sashimi.fig_width",
+    minimum=0,
+    inclusive_min=False,
+)
+SASHIMI_FIG_HEIGHT = _numeric_config(
+    sashimi_cfg,
+    "fig_height",
+    0,
+    float,
+    "sashimi.fig_height",
+    minimum=0,
+)
+SASHIMI_FAIL_ON_ERROR = _get_bool(sashimi_cfg, "fail_on_error", False)
+SASHIMI_KEEP_EVENT_CHR_PREFIX = _get_bool(sashimi_cfg, "keep_event_chr_prefix", False)
+SASHIMI_REMOVE_EVENT_CHR_PREFIX = _get_bool(sashimi_cfg, "remove_event_chr_prefix", False)
+if SASHIMI_KEEP_EVENT_CHR_PREFIX and SASHIMI_REMOVE_EVENT_CHR_PREFIX:
+    raise ValueError(
+        "sashimi.keep_event_chr_prefix and sashimi.remove_event_chr_prefix cannot both be true."
+    )
+SASHIMI_COLORS = sashimi_cfg.get("colors", [])
+if isinstance(SASHIMI_COLORS, str):
+    SASHIMI_COLORS = [color.strip() for color in SASHIMI_COLORS.split(",") if color.strip()]
+else:
+    SASHIMI_COLORS = [str(color) for color in SASHIMI_COLORS]
+SASHIMI_EXTRA_ARGS = str(sashimi_cfg.get("extra_args", "") or "")
+
+
+def maybe_temp(path):
+    return path if KEEP_BAM else temp(path)
 
 
 def _auto_comparisons_from_groups(groups):
@@ -244,11 +445,15 @@ CIRI3_DE_USE_FEATURECOUNTS = _get_bool(
     True,
 )
 
-DEG_ACTIVE = DEG_RUN_DESEQ2 or CIRI3_DE_ENABLED
+if SASHIMI_ENABLED and not RMATS_ENABLED:
+    raise ValueError("sashimi.enabled requires rmats_turbo.enabled because plots use rMATS event files.")
+
+RMATS_WORKFLOW_ACTIVE = RMATS_ENABLED or SASHIMI_ENABLED
+DEG_ACTIVE = DEG_RUN_DESEQ2 or CIRI3_DE_ENABLED or RMATS_WORKFLOW_ACTIVE
 
 if DEG_ACTIVE:
     if len(DEG_GROUP_NAMES) < 2:
-        raise ValueError("DEG/CIRI3 differential analysis is enabled, but fewer than 2 deg.groups are configured.")
+        raise ValueError("DEG/CIRI3/rMATS analysis is enabled, but fewer than 2 deg.groups are configured.")
 
     sample_to_group = {}
     duplicated = set()
@@ -264,7 +469,7 @@ if DEG_ACTIVE:
         if len(members) < 2:
             raise ValueError(
                 f"deg.groups.{group_name} has {len(members)} sample(s). At least two "
-                "biological replicates per group are required for enabled DEG/CIRI3 comparisons."
+                "biological replicates per group are required for enabled comparison modules."
             )
         _unknown_sample_error(f"deg.groups.{group_name}", members)
         for sample in members:
@@ -309,6 +514,116 @@ CIRI3_DE_COMPARISON_NAMES = DEG_COMPARISON_NAMES
 CIRI3_DE_COMPARISON_REGEX = "|".join(
     re.escape(name) for name in CIRI3_DE_COMPARISON_NAMES
 ) or r"(?!)"
+RMATS_COMPARISON_NAMES = DEG_COMPARISON_NAMES if RMATS_ENABLED else []
+RMATS_COMPARISON_REGEX = "|".join(
+    re.escape(name) for name in RMATS_COMPARISON_NAMES
+) or r"(?!)"
+
+SASHIMI_REFERENCE_GROUP = str(
+    sashimi_cfg.get(
+        "reference_group",
+        DEG_GROUP_NAMES[0] if DEG_GROUP_NAMES else "",
+    )
+)
+if SASHIMI_ENABLED and SASHIMI_REFERENCE_GROUP not in DEG_GROUPS:
+    raise ValueError(
+        "sashimi.reference_group must be one of deg.groups: "
+        + ", ".join(DEG_GROUP_NAMES)
+    )
+SASHIMI_GROUP_NAMES = (
+    [SASHIMI_REFERENCE_GROUP]
+    + [group_name for group_name in DEG_GROUP_NAMES if group_name != SASHIMI_REFERENCE_GROUP]
+    if SASHIMI_ENABLED
+    else []
+)
+SASHIMI_B1_SAMPLES = (
+    list(DEG_GROUPS[SASHIMI_REFERENCE_GROUP])
+    if SASHIMI_ENABLED
+    else []
+)
+SASHIMI_B2_SAMPLES = (
+    [
+        sample
+        for group_name in SASHIMI_GROUP_NAMES
+        if group_name != SASHIMI_REFERENCE_GROUP
+        for sample in DEG_GROUPS[group_name]
+    ]
+    if SASHIMI_ENABLED
+    else []
+)
+SASHIMI_ALL_SAMPLES = SASHIMI_B1_SAMPLES + SASHIMI_B2_SAMPLES
+SASHIMI_LABEL_B1 = str(sashimi_cfg.get("label_b1", SASHIMI_REFERENCE_GROUP or "group1"))
+SASHIMI_LABEL_B2 = str(sashimi_cfg.get("label_b2", "other_conditions"))
+
+
+def star_bam_path(sample):
+    return f"{OUTDIR}/star/{sample}/{sample}.Aligned.sortedByCoord.out.bam"
+
+
+def star_bai_path(sample):
+    return f"{OUTDIR}/star/{sample}/{sample}.Aligned.sortedByCoord.out.bam.bai"
+
+
+def rmats_comparison_case_samples(comparison):
+    return list(DEG_COMPARISONS[comparison]["case"])
+
+
+def rmats_comparison_control_samples(comparison):
+    return list(DEG_COMPARISONS[comparison]["control"])
+
+
+def rmats_sample_bams(samples):
+    return [star_bam_path(sample) for sample in samples]
+
+
+def rmats_sample_bais(samples):
+    return [star_bai_path(sample) for sample in samples]
+
+
+def rmats_comparison_bams(wildcards):
+    samples = rmats_comparison_case_samples(wildcards.comparison)
+    samples += rmats_comparison_control_samples(wildcards.comparison)
+    return rmats_sample_bams(samples)
+
+
+def rmats_comparison_bais(wildcards):
+    samples = rmats_comparison_case_samples(wildcards.comparison)
+    samples += rmats_comparison_control_samples(wildcards.comparison)
+    return rmats_sample_bais(samples)
+
+
+def sashimi_all_condition_bams(wildcards=None):
+    return rmats_sample_bams(SASHIMI_ALL_SAMPLES)
+
+
+def sashimi_all_condition_bais(wildcards=None):
+    return rmats_sample_bais(SASHIMI_ALL_SAMPLES)
+
+
+RMATS_EVENT_TARGETS = (
+    [
+        f"{OUTDIR}/rmats/{comparison}/{event_type}.MATS.{count_type}.txt"
+        for comparison in RMATS_COMPARISON_NAMES
+        for event_type in RMATS_EVENT_TYPES
+        for count_type in RMATS_COUNT_TYPES
+    ]
+    if RMATS_ENABLED
+    else []
+)
+SASHIMI_TARGETS = (
+    [
+        f"{OUTDIR}/rmats/sashimi/{comparison}/{event_type}.{SASHIMI_COUNT_TYPE}/manifest.tsv"
+        for comparison in RMATS_COMPARISON_NAMES
+        for event_type in RMATS_EVENT_TYPES
+    ]
+    + [
+        f"{OUTDIR}/rmats/sashimi/{comparison}/{event_type}.{SASHIMI_COUNT_TYPE}/plots.done"
+        for comparison in RMATS_COMPARISON_NAMES
+        for event_type in RMATS_EVENT_TYPES
+    ]
+    if SASHIMI_ENABLED
+    else []
+)
 CIRI3_DE_METHODS = ["de_bsj", "de_ratio", "de_relative"]
 CIRI3_DE_ENABLED_METHODS = (
     (["de_bsj"] if CIRI3_DE_RUN_BSJ else [])
@@ -320,7 +635,7 @@ motif_cfg = config.get("motif", {})
 MOTIF_ENABLED = _as_bool(motif_cfg.get("enabled", True), default=True)
 
 if DEG_ACTIVE and not DEG_COMPARISON_NAMES:
-    raise ValueError("DEG/CIRI3 differential analysis is enabled, but no comparisons could be generated.")
+    raise ValueError("DEG/CIRI3/rMATS analysis is enabled, but no comparisons could be generated.")
 
 if DEG_ACTIVE:
     for comp_name, comp in DEG_COMPARISONS.items():

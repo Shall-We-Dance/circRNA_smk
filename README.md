@@ -60,6 +60,16 @@ This repository provides a reproducible Snakemake workflow for analyzing circula
   - `results/deg/ciri3/<CaseGroup>_vs_<ControlGroup>/de_relative/result.txt`
   - `results/deg/ciri3/<CaseGroup>_vs_<ControlGroup>/de_relative/{heatmap_top50,pca,volcano,volcano_labeled}.pdf`
   - `results/deg/ciri3/all_groups/{de_bsj,de_ratio,de_relative}/{heatmap_top50,pca}.pdf`
+- **Linear alternative splicing with rMATS-turbo (optional)**
+  - `results/rmats/<CaseGroup>_vs_<ControlGroup>/{SE,A5SS,A3SS,MXE,RI}.MATS.JC.txt`
+  - `results/rmats/<CaseGroup>_vs_<ControlGroup>/{SE,A5SS,A3SS,MXE,RI}.MATS.JCEC.txt`
+  - `results/rmats/<CaseGroup>_vs_<ControlGroup>/summary.txt`
+  - `results/rmats/<CaseGroup>_vs_<ControlGroup>/inputs/{b1,b2}.txt`
+- **All-condition sashimi plots from significant rMATS events (optional)**
+  - `results/rmats/sashimi/all_conditions/{b1,b2}.txt`
+  - `results/rmats/sashimi/all_conditions/grouping.gf`
+  - `results/rmats/sashimi/<CaseGroup>_vs_<ControlGroup>/<EventType>.<JC|JCEC>/manifest.tsv`
+  - `results/rmats/sashimi/<CaseGroup>_vs_<ControlGroup>/<EventType>.<JC|JCEC>/plots/<event>/Sashimi_plot/*.pdf`
 
 ### Intermediate file handling
 To minimize storage footprint, intermediate FASTQs produced by fastp and merged FASTQs are marked as temporary and are removed automatically by Snakemake. In addition, STAR/BWA BAM files are temporary by default (`output.keep_bam: false`) and will be removed after downstream rules finish. Set `output.keep_bam: true` if you want to retain BAM/BAI files. Final deliverables include:
@@ -93,10 +103,15 @@ To minimize storage footprint, intermediate FASTQs produced by fastp and merged 
    CIRI3 also writes method-separated all-group summaries under `results/deg/ciri3/all_groups/de_bsj`, `de_ratio`, and `de_relative`, each with `heatmap_top50.pdf` and `pca.pdf`.
    Pairwise comparisons are generated from `deg.groups` in group order. For `conditionX`, `conditionY`, `conditionZ`, outputs are named `conditionY_vs_conditionX`, `conditionZ_vs_conditionY`, and `conditionZ_vs_conditionX`, where the first group is the case group and the second group is the control group.
 
-7. **Splicing-site and back-splicing feature statistics (enabled by default)**
+7. **rMATS-turbo alternative splicing and sashimi plots (optional)**
+   `rmats_turbo.enabled: true` runs rMATS-turbo on the STAR coordinate-sorted BAM files. The workflow writes rMATS `b1.txt` / `b2.txt` files for every `deg.groups` pairwise comparison, calls `rmats.py --b1 --b2 --gtf ...`, and stores the standard `SE`, `A5SS`, `A3SS`, `MXE`, and `RI` event files under `results/rmats/<comparison>/`.
+
+   `sashimi.enabled: true` then filters the selected rMATS event table (`sashimi.count_type`, default `JC`) by `FDR`, `PValue`, and `IncLevelDifference`. Each significant AS event is written as a one-row event file and plotted with `rmats2sashimiplot`. The sashimi plot uses all configured conditions, not only the pairwise groups, through `results/rmats/sashimi/all_conditions/grouping.gf`. The per-event `manifest.tsv` records the original event ID, gene symbol, thresholds, output PDF path(s), and whether plotting succeeded.
+
+8. **Splicing-site and back-splicing feature statistics (enabled by default)**
    The workflow computes per-sample circRNA splicing-site feature tables using each sample's CIRI3 BSJ/FSJ matrices plus the reference genome FASTA. It reports BSJ/FSJ counts, CIRI/CIRIquant-style junction ratio (`2 * BSJ / (2 * BSJ + FSJ)`), BSJ span, CIRI3 metadata, and splice-site dinucleotide classes (canonical `GU-AG`, semi-canonical `GC-AG`, minor `AU-AC`, non-canonical, unknown). It also identifies strand-aware alternative back-splicing (ABS) events from BSJs that share one back-splice site but use alternative partner sites: A5BS shares the 3' back-splice site and varies the 5' site, while A3BS shares the 5' site and varies the 3' site. Each ABS member is annotated with event-level BSJ support, site count, rank, and Percent Circularized-site Usage (PCU = member BSJ / event BSJ total). Per-sample plots are merged into unified summary/distribution/ABS tables and an overview figure.
 
-8. **BSJ motif analysis (optional, enabled by default)**  
+9. **BSJ motif analysis (optional, enabled by default)**
    The workflow exports BSJ donor/acceptor sequence windows for each sample into `results/motif/<sample>/bsj_sites.tsv` and `results/motif/<sample>/bsj_sites.fa`, then runs HOMER `findMotifs.pl` per sample. It also performs all-sample motif summary statistics/plots. Outputs include:
    - `results/motif/<sample>/bsj_sites.tsv` (per-BSJ sequence windows),
    - `results/motif/<sample>/bsj_motif_summary.tsv` (copied from HOMER `knownResults.txt`),
@@ -118,8 +133,10 @@ To minimize storage footprint, intermediate FASTQs produced by fastp and merged 
 - MultiQC
 - Python packages: `pysam`
 - HOMER (`findMotifs.pl`)
+- rMATS-turbo build dependencies (provided by `workflow/rules/envs/rmats_turbo.yaml` when using conda)
+- rmats2sashimiplot dependencies: Python, numpy, scipy, matplotlib, pysam, samtools, bedtools
 
-All dependencies are provided via the conda environments under `workflow/rules/envs/`. The workflow automatically clones CIRI3 from GitHub and uses the Java 18 build from the checked-out repository.
+All dependencies are provided via the conda environments under `workflow/rules/envs/`. The workflow automatically clones CIRI3, rMATS-turbo, and rmats2sashimiplot from GitHub and uses the configured tags/refs.
 
 ## Installation
 
@@ -163,6 +180,16 @@ Key fields:
 * `deg.min_samples_detected`: minimum number of samples with BSJ count > 0 (default `2`)
 * `deg.padj_cutoff`: adjusted p-value threshold used for significance labels/plots (default `0.05`)
 * `deg.lfc_cutoff`: absolute log2 fold-change threshold used for significance labels/plots (default `1.0`)
+* `rmats_turbo.enabled`: run rMATS-turbo on STAR BAMs using the same pairwise comparison definitions as `deg.groups` / `deg.comparisons`
+* `rmats_turbo.ref`: Git tag/branch/commit for `https://github.com/Xinglab/rmats-turbo.git` (default `v4.3.0`)
+* `rmats_turbo.read_length`: nominal read length passed to rMATS `--readLength`; update this for your sequencing data
+* `rmats_turbo.lib_type`: rMATS library type (`fr-unstranded`, `fr-firststrand`, or `fr-secondstrand`)
+* `rmats_turbo.variable_read_length`: add `--variable-read-length`, useful after trimming
+* `sashimi.enabled`: plot significant rMATS events with rmats2sashimiplot
+* `sashimi.reference_group`: condition used as `--b1` for all-condition plotting; all other groups are passed as `--b2`
+* `sashimi.count_type`: which rMATS count table to plot (`JC` or `JCEC`)
+* `sashimi.fdr_cutoff`, `sashimi.pvalue_cutoff`, `sashimi.inc_diff_cutoff`: significant-event filters for sashimi plotting
+* `sashimi.max_events_per_comparison_type`: cap plots per comparison/event type (`0` means all significant events)
 * `motif.enabled`: run BSJ motif module (`true` by default)
 * `motif.flank`: sequence window half-size around BSJ donor/acceptor (default `30`)
 * `motif.homer_len`: HOMER motif lengths for `findMotifs.pl -len` (default `"8,10,12"`)

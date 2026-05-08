@@ -1,0 +1,11 @@
+name: rmats2sashimiplot
+channels: [conda-forge, bioconda]
+dependencies:
+  - python=3.9
+  - numpy
+  - scipy
+  - matplotlib-base
+  - pysam
+  - samtools
+  - bedtools
+  - git

@@ -7,6 +7,7 @@ include: "rules/featurecount.smk"
 include: "rules/ciri3.smk"
 include: "rules/motif.smk"
 include: "rules/splicing_stats.smk"
+include: "rules/rmats.smk"
 include: "rules/deg.smk"
 
 rule all:
@@ -38,6 +39,10 @@ rule all:
         f"{OUTDIR}/splicing/all_samples_distributions.tsv",
         f"{OUTDIR}/splicing/all_samples_alternative_back_splicing.tsv",
         f"{OUTDIR}/splicing/all_samples_overview.png",
+
+        # rMATS-turbo AS event calling from STAR BAMs + optional all-condition sashimi plots
+        *RMATS_EVENT_TARGETS,
+        *SASHIMI_TARGETS,
 
         # motif outputs
         *(
