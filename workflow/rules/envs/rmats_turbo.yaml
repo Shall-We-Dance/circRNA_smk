@@ -8,7 +8,9 @@ dependencies:
   - gsl
   - libblas
   - liblapack
-  - cmake
+  # rMATS-turbo v4.3.0 vendors bamtools with an old CMake policy version.
+  # CMake 4 rejects that project during configure, so keep this build on 3.x.
+  - cmake<4
   - make
   - c-compiler
   - cxx-compiler
