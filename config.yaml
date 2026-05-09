@@ -167,7 +167,8 @@ sashimi:
   repo_url: "https://github.com/Xinglab/rmats2sashimiplot.git"
   ref: "v3.0.0"
   count_type: "JC"
-  reference_group: "conditionX"
+  # Pairwise sashimi plots use each rMATS comparison's case group as b1 and
+  # control group as b2.
   fdr_cutoff: 0.05
   pvalue_cutoff: 1.0
   inc_diff_cutoff: 0.1

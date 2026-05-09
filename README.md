@@ -65,9 +65,9 @@ This repository provides a reproducible Snakemake workflow for analyzing circula
   - `results/rmats/<CaseGroup>_vs_<ControlGroup>/{SE,A5SS,A3SS,MXE,RI}.MATS.JCEC.txt`
   - `results/rmats/<CaseGroup>_vs_<ControlGroup>/summary.txt`
   - `results/rmats/<CaseGroup>_vs_<ControlGroup>/inputs/{b1,b2}.txt`
-- **All-condition sashimi plots from significant rMATS events (optional)**
-  - `results/rmats/sashimi/all_conditions/{b1,b2}.txt`
-  - `results/rmats/sashimi/all_conditions/grouping.gf`
+- **Pairwise sashimi plots from significant rMATS events (optional)**
+  - `results/rmats/sashimi/<CaseGroup>_vs_<ControlGroup>/inputs/{b1,b2}.txt`
+  - `results/rmats/sashimi/<CaseGroup>_vs_<ControlGroup>/inputs/grouping.gf`
   - `results/rmats/sashimi/<CaseGroup>_vs_<ControlGroup>/<EventType>.<JC|JCEC>/manifest.tsv`
   - `results/rmats/sashimi/<CaseGroup>_vs_<ControlGroup>/<EventType>.<JC|JCEC>/plots/<event>/Sashimi_plot/*.pdf`
 
@@ -106,7 +106,7 @@ To minimize storage footprint, intermediate FASTQs produced by fastp and merged 
 7. **rMATS-turbo alternative splicing and sashimi plots (optional)**
    `rmats_turbo.enabled: true` runs rMATS-turbo on the STAR coordinate-sorted BAM files. The workflow writes rMATS `b1.txt` / `b2.txt` files for every `deg.groups` pairwise comparison, calls `rmats.py --b1 --b2 --gtf ...`, and stores the standard `SE`, `A5SS`, `A3SS`, `MXE`, and `RI` event files under `results/rmats/<comparison>/`.
 
-   `sashimi.enabled: true` then filters the selected rMATS event table (`sashimi.count_type`, default `JC`) by `FDR`, `PValue`, and `IncLevelDifference`. Each significant AS event is written as a one-row event file and plotted with `rmats2sashimiplot`. The sashimi plot uses all configured conditions, not only the pairwise groups, through `results/rmats/sashimi/all_conditions/grouping.gf`. The per-event `manifest.tsv` records the original event ID, gene symbol, thresholds, output PDF path(s), and whether plotting succeeded.
+   `sashimi.enabled: true` then filters the selected rMATS event table (`sashimi.count_type`, default `JC`) by `FDR`, `PValue`, and `IncLevelDifference`. Each significant AS event is written as a one-row event file and plotted with `rmats2sashimiplot`. The sashimi plot is generated for every pairwise rMATS comparison, using that comparison's case group as `--b1` and control group as `--b2` through `results/rmats/sashimi/<comparison>/inputs/grouping.gf`. The per-event `manifest.tsv` records the original event ID, gene symbol, thresholds, output PDF path(s), and whether plotting succeeded.
 
 8. **Splicing-site and back-splicing feature statistics (enabled by default)**
    The workflow computes per-sample circRNA splicing-site feature tables using each sample's CIRI3 BSJ/FSJ matrices plus the reference genome FASTA. It reports BSJ/FSJ counts, CIRI/CIRIquant-style junction ratio (`2 * BSJ / (2 * BSJ + FSJ)`), BSJ span, CIRI3 metadata, and splice-site dinucleotide classes (canonical `GU-AG`, semi-canonical `GC-AG`, minor `AU-AC`, non-canonical, unknown). It also identifies strand-aware alternative back-splicing (ABS) events from BSJs that share one back-splice site but use alternative partner sites: A5BS shares the 3' back-splice site and varies the 5' site, while A3BS shares the 5' site and varies the 3' site. Each ABS member is annotated with event-level BSJ support, site count, rank, and Percent Circularized-site Usage (PCU = member BSJ / event BSJ total). Per-sample plots are merged into unified summary/distribution/ABS tables and an overview figure.
@@ -186,7 +186,6 @@ Key fields:
 * `rmats_turbo.lib_type`: rMATS library type (`fr-unstranded`, `fr-firststrand`, or `fr-secondstrand`)
 * `rmats_turbo.variable_read_length`: add `--variable-read-length`, useful after trimming
 * `sashimi.enabled`: plot significant rMATS events with rmats2sashimiplot
-* `sashimi.reference_group`: condition used as `--b1` for all-condition plotting; all other groups are passed as `--b2`
 * `sashimi.count_type`: which rMATS count table to plot (`JC` or `JCEC`)
 * `sashimi.fdr_cutoff`, `sashimi.pvalue_cutoff`, `sashimi.inc_diff_cutoff`: significant-event filters for sashimi plotting
 * `sashimi.max_events_per_comparison_type`: cap plots per comparison/event type (`0` means all significant events)

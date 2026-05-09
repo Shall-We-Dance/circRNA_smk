@@ -40,7 +40,7 @@ rule all:
         f"{OUTDIR}/splicing/all_samples_alternative_back_splicing.tsv",
         f"{OUTDIR}/splicing/all_samples_overview.png",
 
-        # rMATS-turbo AS event calling from STAR BAMs + optional all-condition sashimi plots
+        # rMATS-turbo AS event calling from STAR BAMs + optional pairwise sashimi plots
         *RMATS_EVENT_TARGETS,
         *SASHIMI_TARGETS,
 

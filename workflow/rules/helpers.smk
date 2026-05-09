@@ -519,41 +519,8 @@ RMATS_COMPARISON_REGEX = "|".join(
     re.escape(name) for name in RMATS_COMPARISON_NAMES
 ) or r"(?!)"
 
-SASHIMI_REFERENCE_GROUP = str(
-    sashimi_cfg.get(
-        "reference_group",
-        DEG_GROUP_NAMES[0] if DEG_GROUP_NAMES else "",
-    )
-)
-if SASHIMI_ENABLED and SASHIMI_REFERENCE_GROUP not in DEG_GROUPS:
-    raise ValueError(
-        "sashimi.reference_group must be one of deg.groups: "
-        + ", ".join(DEG_GROUP_NAMES)
-    )
-SASHIMI_GROUP_NAMES = (
-    [SASHIMI_REFERENCE_GROUP]
-    + [group_name for group_name in DEG_GROUP_NAMES if group_name != SASHIMI_REFERENCE_GROUP]
-    if SASHIMI_ENABLED
-    else []
-)
-SASHIMI_B1_SAMPLES = (
-    list(DEG_GROUPS[SASHIMI_REFERENCE_GROUP])
-    if SASHIMI_ENABLED
-    else []
-)
-SASHIMI_B2_SAMPLES = (
-    [
-        sample
-        for group_name in SASHIMI_GROUP_NAMES
-        if group_name != SASHIMI_REFERENCE_GROUP
-        for sample in DEG_GROUPS[group_name]
-    ]
-    if SASHIMI_ENABLED
-    else []
-)
-SASHIMI_ALL_SAMPLES = SASHIMI_B1_SAMPLES + SASHIMI_B2_SAMPLES
-SASHIMI_LABEL_B1 = str(sashimi_cfg.get("label_b1", SASHIMI_REFERENCE_GROUP or "group1"))
-SASHIMI_LABEL_B2 = str(sashimi_cfg.get("label_b2", "other_conditions"))
+SASHIMI_LABEL_B1_CONFIG = sashimi_cfg.get("label_b1")
+SASHIMI_LABEL_B2_CONFIG = sashimi_cfg.get("label_b2")
 
 
 def star_bam_path(sample):
@@ -592,12 +559,35 @@ def rmats_comparison_bais(wildcards):
     return rmats_sample_bais(samples)
 
 
-def sashimi_all_condition_bams(wildcards=None):
-    return rmats_sample_bams(SASHIMI_ALL_SAMPLES)
+def sashimi_comparison_group_names(comparison):
+    comp = DEG_COMPARISONS[comparison]
+    return [comp["case_group"], comp["control_group"]]
 
 
-def sashimi_all_condition_bais(wildcards=None):
-    return rmats_sample_bais(SASHIMI_ALL_SAMPLES)
+def sashimi_comparison_groups(comparison):
+    comp = DEG_COMPARISONS[comparison]
+    return {
+        comp["case_group"]: list(comp["case"]),
+        comp["control_group"]: list(comp["control"]),
+    }
+
+
+def _configured_or_default_label(configured, default):
+    return str(configured) if configured not in (None, "") else str(default)
+
+
+def sashimi_label_b1(wildcards):
+    return _configured_or_default_label(
+        SASHIMI_LABEL_B1_CONFIG,
+        DEG_COMPARISONS[wildcards.comparison]["case_group"],
+    )
+
+
+def sashimi_label_b2(wildcards):
+    return _configured_or_default_label(
+        SASHIMI_LABEL_B2_CONFIG,
+        DEG_COMPARISONS[wildcards.comparison]["control_group"],
+    )
 
 
 RMATS_EVENT_TARGETS = (

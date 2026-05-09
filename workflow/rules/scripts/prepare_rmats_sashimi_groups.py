@@ -7,7 +7,8 @@ def abs_path(path):
 
 group_names = list(snakemake.params.group_names)
 groups = {group: list(samples) for group, samples in dict(snakemake.params.groups).items()}
-reference_group = str(snakemake.params.reference_group)
+b1_group = str(snakemake.params.b1_group)
+b2_group = str(snakemake.params.b2_group)
 b1_samples = list(snakemake.params.b1_samples)
 b2_samples = list(snakemake.params.b2_samples)
 ordered_samples = b1_samples + b2_samples
@@ -15,7 +16,7 @@ bams = [abs_path(path) for path in snakemake.input.bams]
 
 if len(ordered_samples) != len(bams):
     raise ValueError(
-        f"Expected {len(ordered_samples)} BAMs for sashimi all-condition plotting, "
+        f"Expected {len(ordered_samples)} BAMs for sashimi pairwise plotting, "
         f"got {len(bams)}."
     )
 
@@ -52,6 +53,6 @@ with open(snakemake.output.samples, "w") as handle:
 
 Path(snakemake.log[0]).parent.mkdir(parents=True, exist_ok=True)
 Path(snakemake.log[0]).write_text(
-    f"Prepared rmats2sashimiplot grouping with {len(group_names)} groups. "
-    f"Reference b1 group: {reference_group}.\n"
+    f"Prepared rmats2sashimiplot grouping for {snakemake.wildcards.comparison}: "
+    f"{b1_group} ({len(b1_samples)} BAMs) vs {b2_group} ({len(b2_samples)} BAMs).\n"
 )

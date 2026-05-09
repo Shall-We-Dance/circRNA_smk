@@ -244,21 +244,24 @@ rule rmats_turbo_pairwise:
 
 rule rmats_prepare_sashimi_groups:
     input:
-        bams=sashimi_all_condition_bams,
-        bais=sashimi_all_condition_bais
+        bams=rmats_comparison_bams,
+        bais=rmats_comparison_bais
     output:
-        b1=f"{OUTDIR}/rmats/sashimi/all_conditions/b1.txt",
-        b2=f"{OUTDIR}/rmats/sashimi/all_conditions/b2.txt",
-        group_info=f"{OUTDIR}/rmats/sashimi/all_conditions/grouping.gf",
-        samples=f"{OUTDIR}/rmats/sashimi/all_conditions/samples.tsv"
+        b1=f"{OUTDIR}/rmats/sashimi/{{comparison}}/inputs/b1.txt",
+        b2=f"{OUTDIR}/rmats/sashimi/{{comparison}}/inputs/b2.txt",
+        group_info=f"{OUTDIR}/rmats/sashimi/{{comparison}}/inputs/grouping.gf",
+        samples=f"{OUTDIR}/rmats/sashimi/{{comparison}}/inputs/samples.tsv"
+    wildcard_constraints:
+        comparison=RMATS_COMPARISON_REGEX
     params:
-        group_names=SASHIMI_GROUP_NAMES,
-        groups=DEG_GROUPS,
-        reference_group=SASHIMI_REFERENCE_GROUP,
-        b1_samples=SASHIMI_B1_SAMPLES,
-        b2_samples=SASHIMI_B2_SAMPLES
+        group_names=lambda wc: sashimi_comparison_group_names(wc.comparison),
+        groups=lambda wc: sashimi_comparison_groups(wc.comparison),
+        b1_group=lambda wc: DEG_COMPARISONS[wc.comparison]["case_group"],
+        b2_group=lambda wc: DEG_COMPARISONS[wc.comparison]["control_group"],
+        b1_samples=lambda wc: rmats_comparison_case_samples(wc.comparison),
+        b2_samples=lambda wc: rmats_comparison_control_samples(wc.comparison)
     log:
-        "logs/rmats/sashimi.prepare_groups.log"
+        "logs/rmats/sashimi/{comparison}.prepare_groups.log"
     script:
         "scripts/prepare_rmats_sashimi_groups.py"
 
@@ -268,11 +271,11 @@ rule rmats2sashimi_plot_events:
         script=RMATS2SASHIMI_SCRIPT,
         ready=RMATS2SASHIMI_READY,
         event_file=f"{OUTDIR}/rmats/{{comparison}}/{{event_type}}.MATS.{{count_type}}.txt",
-        b1=f"{OUTDIR}/rmats/sashimi/all_conditions/b1.txt",
-        b2=f"{OUTDIR}/rmats/sashimi/all_conditions/b2.txt",
-        group_info=f"{OUTDIR}/rmats/sashimi/all_conditions/grouping.gf",
-        bams=sashimi_all_condition_bams,
-        bais=sashimi_all_condition_bais
+        b1=f"{OUTDIR}/rmats/sashimi/{{comparison}}/inputs/b1.txt",
+        b2=f"{OUTDIR}/rmats/sashimi/{{comparison}}/inputs/b2.txt",
+        group_info=f"{OUTDIR}/rmats/sashimi/{{comparison}}/inputs/grouping.gf",
+        bams=rmats_comparison_bams,
+        bais=rmats_comparison_bais
     output:
         manifest=f"{OUTDIR}/rmats/sashimi/{{comparison}}/{{event_type}}.{{count_type}}/manifest.tsv",
         done=f"{OUTDIR}/rmats/sashimi/{{comparison}}/{{event_type}}.{{count_type}}/plots.done"
@@ -292,8 +295,8 @@ rule rmats2sashimi_plot_events:
         font_size=SASHIMI_FONT_SIZE,
         fig_width=SASHIMI_FIG_WIDTH,
         fig_height=SASHIMI_FIG_HEIGHT,
-        label_b1=SASHIMI_LABEL_B1,
-        label_b2=SASHIMI_LABEL_B2,
+        label_b1=sashimi_label_b1,
+        label_b2=sashimi_label_b2,
         colors=SASHIMI_COLORS,
         fail_on_error=SASHIMI_FAIL_ON_ERROR,
         keep_event_chr_prefix=SASHIMI_KEEP_EVENT_CHR_PREFIX,
