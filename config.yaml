@@ -141,8 +141,9 @@ deg:
       - sampleI
 
 rmats_turbo:
-  # run rMATS-turbo on STAR coordinate-sorted BAMs using the pairwise comparisons
-  # generated from deg.groups / deg.comparisons
+  # run rMATS-turbo on STAR coordinate-sorted BAMs separately for each deg.group.
+  # The workflow uses --b1 plus --statoff for each group, so rMATS counts AS
+  # events without doing a pairwise statistical comparison.
   enabled: true
   repo_url: "https://github.com/Xinglab/rmats-turbo.git"
   ref: "v4.3.0"
@@ -161,19 +162,24 @@ rmats_turbo:
   count_types: ["JC", "JCEC"]
 
 sashimi:
-  # plot significant rMATS AS events. Each plotted event gets its own filtered
-  # event file and rmats2sashimiplot output directory.
+  # plot significant BSJ sites from DESeq2 and enabled CIRI3 DEG methods.
+  # Each method/comparison gets its own directory, and every selected BSJ is
+  # plotted across all deg.groups with rmats2sashimiplot coordinate mode.
   enabled: true
   repo_url: "https://github.com/Xinglab/rmats2sashimiplot.git"
   ref: "v3.0.0"
+  # Optional GFF3 annotation for coordinate mode. If omitted, the workflow
+  # creates a GFF3 from reference.gtf.
+  # annotation_gff3: "resources/genomeIndex/annotation.gff3"
   count_type: "JC"
-  # Pairwise sashimi plots use each rMATS comparison's case group as b1 and
-  # control group as b2.
   fdr_cutoff: 0.05
   pvalue_cutoff: 1.0
   inc_diff_cutoff: 0.1
-  # 0 means plot all significant events; use a positive number for quick runs.
+  # 0 means plot all significant BSJs per method/comparison; use a positive
+  # number for quick runs.
   max_events_per_comparison_type: 0
+  # Bases added to each side of the BSJ span for coordinate-mode sashimi plots.
+  bsj_flank: 250
   min_counts: 0
   exon_s: 1
   intron_s: 5

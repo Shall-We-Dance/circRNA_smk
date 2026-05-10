@@ -188,7 +188,7 @@ RMATS2SASHIMI_INSTALL_DIR = sashimi_cfg.get(
     "install_dir",
     f"{OUTDIR}/resources/rmats2sashimiplot/{_sanitize_path_component(RMATS2SASHIMI_REPO_REF)}",
 )
-RMATS2SASHIMI_READY = os.path.join(RMATS2SASHIMI_INSTALL_DIR, ".snakemake_ready")
+RMATS2SASHIMI_READY = os.path.join(RMATS2SASHIMI_INSTALL_DIR, ".snakemake_py3_miso_ready")
 RMATS2SASHIMI_SCRIPT = os.path.join(
     RMATS2SASHIMI_INSTALL_DIR,
     "src",
@@ -278,6 +278,14 @@ SASHIMI_FIG_HEIGHT = _numeric_config(
     "sashimi.fig_height",
     minimum=0,
 )
+SASHIMI_BSJ_FLANK = _numeric_config(
+    sashimi_cfg,
+    "bsj_flank",
+    250,
+    int,
+    "sashimi.bsj_flank",
+    minimum=0,
+)
 SASHIMI_FAIL_ON_ERROR = _get_bool(sashimi_cfg, "fail_on_error", False)
 SASHIMI_KEEP_EVENT_CHR_PREFIX = _get_bool(sashimi_cfg, "keep_event_chr_prefix", False)
 SASHIMI_REMOVE_EVENT_CHR_PREFIX = _get_bool(sashimi_cfg, "remove_event_chr_prefix", False)
@@ -291,6 +299,18 @@ if isinstance(SASHIMI_COLORS, str):
 else:
     SASHIMI_COLORS = [str(color) for color in SASHIMI_COLORS]
 SASHIMI_EXTRA_ARGS = str(sashimi_cfg.get("extra_args", "") or "")
+SASHIMI_GFF3_CONFIG = (
+    config.get("reference", {}).get("gff3")
+    or sashimi_cfg.get("annotation_gff3")
+    or sashimi_cfg.get("gff3")
+)
+SASHIMI_GFF3_FROM_GTF = SASHIMI_GFF3_CONFIG in (None, "")
+SASHIMI_GFF3 = (
+    f"{OUTDIR}/resources/annotation/"
+    f"{_sanitize_path_component(os.path.basename(config['reference']['gtf']))}.gff3"
+    if SASHIMI_GFF3_FROM_GTF
+    else str(SASHIMI_GFF3_CONFIG)
+)
 
 
 def maybe_temp(path):
@@ -445,11 +465,14 @@ CIRI3_DE_USE_FEATURECOUNTS = _get_bool(
     True,
 )
 
-if SASHIMI_ENABLED and not RMATS_ENABLED:
-    raise ValueError("sashimi.enabled requires rmats_turbo.enabled because plots use rMATS event files.")
-
 RMATS_WORKFLOW_ACTIVE = RMATS_ENABLED or SASHIMI_ENABLED
 DEG_ACTIVE = DEG_RUN_DESEQ2 or CIRI3_DE_ENABLED or RMATS_WORKFLOW_ACTIVE
+
+if SASHIMI_ENABLED and not (DEG_RUN_DESEQ2 or CIRI3_DE_ENABLED):
+    raise ValueError(
+        "sashimi.enabled requires at least one BSJ differential source: "
+        "deg.run_deseq2, deg.run_de_bsj, deg.run_de_ratio, or deg.run_de_relative."
+    )
 
 if DEG_ACTIVE:
     if len(DEG_GROUP_NAMES) < 2:
@@ -482,15 +505,15 @@ if DEG_ACTIVE:
             + ", ".join(sorted(duplicated))
         )
 
-    selected_deg_samples = [
+    DEG_SELECTED_SAMPLES = [
         sample
         for members in DEG_GROUPS.values()
         for sample in members
     ]
-    if DEG_MIN_SAMPLES_DETECTED > len(selected_deg_samples):
+    if DEG_MIN_SAMPLES_DETECTED > len(DEG_SELECTED_SAMPLES):
         raise ValueError(
             "deg.min_samples_detected cannot exceed the number of samples in deg.groups "
-            f"({len(selected_deg_samples)})."
+            f"({len(DEG_SELECTED_SAMPLES)})."
         )
 
     if CIRI3_DE_RUN_BSJ and not CIRI3_DE_USE_FEATURECOUNTS:
@@ -498,6 +521,8 @@ if DEG_ACTIVE:
             "deg.run_de_bsj requires deg.ciri3_gene_expression_from_featurecounts: true; "
             "no alternate gene-expression source is currently implemented."
         )
+else:
+    DEG_SELECTED_SAMPLES = []
 
 explicit_deg_comparisons = deg_cfg.get("comparisons")
 
@@ -514,9 +539,23 @@ CIRI3_DE_COMPARISON_NAMES = DEG_COMPARISON_NAMES
 CIRI3_DE_COMPARISON_REGEX = "|".join(
     re.escape(name) for name in CIRI3_DE_COMPARISON_NAMES
 ) or r"(?!)"
+RMATS_GROUP_NAMES = DEG_GROUP_NAMES if RMATS_ENABLED else []
+RMATS_GROUP_REGEX = "|".join(
+    re.escape(name) for name in RMATS_GROUP_NAMES
+) or r"(?!)"
 RMATS_COMPARISON_NAMES = DEG_COMPARISON_NAMES if RMATS_ENABLED else []
 RMATS_COMPARISON_REGEX = "|".join(
     re.escape(name) for name in RMATS_COMPARISON_NAMES
+) or r"(?!)"
+
+BSJ_SASHIMI_METHODS = (
+    (["deseq2"] if DEG_RUN_DESEQ2 else [])
+    + (["de_bsj"] if CIRI3_DE_RUN_BSJ else [])
+    + (["de_ratio"] if CIRI3_DE_RUN_RATIO else [])
+    + (["de_relative"] if CIRI3_DE_RUN_RELATIVE else [])
+)
+BSJ_SASHIMI_METHOD_REGEX = "|".join(
+    re.escape(method) for method in BSJ_SASHIMI_METHODS
 ) or r"(?!)"
 
 SASHIMI_LABEL_B1_CONFIG = sashimi_cfg.get("label_b1")
@@ -539,6 +578,10 @@ def rmats_comparison_control_samples(comparison):
     return list(DEG_COMPARISONS[comparison]["control"])
 
 
+def rmats_group_samples(group):
+    return list(DEG_GROUPS[group])
+
+
 def rmats_sample_bams(samples):
     return [star_bam_path(sample) for sample in samples]
 
@@ -557,6 +600,22 @@ def rmats_comparison_bais(wildcards):
     samples = rmats_comparison_case_samples(wildcards.comparison)
     samples += rmats_comparison_control_samples(wildcards.comparison)
     return rmats_sample_bais(samples)
+
+
+def rmats_group_bams(wildcards):
+    return rmats_sample_bams(rmats_group_samples(wildcards.group))
+
+
+def rmats_group_bais(wildcards):
+    return rmats_sample_bais(rmats_group_samples(wildcards.group))
+
+
+def sashimi_all_group_bams(wildcards):
+    return rmats_sample_bams(DEG_SELECTED_SAMPLES)
+
+
+def sashimi_all_group_bais(wildcards):
+    return rmats_sample_bais(DEG_SELECTED_SAMPLES)
 
 
 def sashimi_comparison_group_names(comparison):
@@ -590,10 +649,18 @@ def sashimi_label_b2(wildcards):
     )
 
 
+def bsj_sashimi_result_path(wildcards):
+    if wildcards.method == "deseq2":
+        return f"{OUTDIR}/deg/deseq2/pairwise/{wildcards.comparison}/deseq2_results.tsv"
+    if wildcards.method in {"de_bsj", "de_ratio", "de_relative"}:
+        return f"{CIRI3_DE_OUTDIR}/{wildcards.comparison}/{wildcards.method}/result.txt"
+    raise ValueError(f"Unsupported BSJ sashimi method: {wildcards.method}")
+
+
 RMATS_EVENT_TARGETS = (
     [
-        f"{OUTDIR}/rmats/{comparison}/{event_type}.MATS.{count_type}.txt"
-        for comparison in RMATS_COMPARISON_NAMES
+        f"{OUTDIR}/rmats/groups/{group}/{event_type}.MATS.{count_type}.txt"
+        for group in RMATS_GROUP_NAMES
         for event_type in RMATS_EVENT_TYPES
         for count_type in RMATS_COUNT_TYPES
     ]
@@ -602,14 +669,14 @@ RMATS_EVENT_TARGETS = (
 )
 SASHIMI_TARGETS = (
     [
-        f"{OUTDIR}/rmats/sashimi/{comparison}/{event_type}.{SASHIMI_COUNT_TYPE}/manifest.tsv"
-        for comparison in RMATS_COMPARISON_NAMES
-        for event_type in RMATS_EVENT_TYPES
+        f"{OUTDIR}/rmats/sashimi/bsj/{method}/{comparison}/manifest.tsv"
+        for method in BSJ_SASHIMI_METHODS
+        for comparison in DEG_COMPARISON_NAMES
     ]
     + [
-        f"{OUTDIR}/rmats/sashimi/{comparison}/{event_type}.{SASHIMI_COUNT_TYPE}/plots.done"
-        for comparison in RMATS_COMPARISON_NAMES
-        for event_type in RMATS_EVENT_TYPES
+        f"{OUTDIR}/rmats/sashimi/bsj/{method}/{comparison}/plots.done"
+        for method in BSJ_SASHIMI_METHODS
+        for comparison in DEG_COMPARISON_NAMES
     ]
     if SASHIMI_ENABLED
     else []

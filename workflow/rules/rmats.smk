@@ -136,8 +136,8 @@ rule fetch_rmats2sashimiplot:
           exit 1
         fi
 
-        echo "Converting rmats2sashimiplot source for Python 3 compatibility" >> "{log}"
-        python -m lib2to3 -w -n "$repo_dir/src/rmats2sashimiplot" >> "{log}" 2>&1
+        echo "Converting bundled rmats2sashimiplot/MISO source for Python 3 compatibility" >> "{log}"
+        python -m lib2to3 -w -n "$repo_dir/src/rmats2sashimiplot" "$repo_dir/src/MISO" >> "{log}" 2>&1
 
         test -s "{output.script}" || (echo "Missing rmats2sashimiplot.py after checkout: {output.script}" >> "{log}"; exit 1)
         touch "{output.ready}"
@@ -160,6 +160,8 @@ rule rmats_prepare_pairwise_inputs:
         control_group=lambda wc: DEG_COMPARISONS[wc.comparison]["control_group"]
     log:
         "logs/rmats/{comparison}.prepare_inputs.log"
+    conda:
+        "envs/rmats2sashimiplot.yaml"
     script:
         "scripts/prepare_rmats_pairwise_inputs.py"
 
@@ -242,6 +244,177 @@ rule rmats_turbo_pairwise:
         """
 
 
+rule rmats_prepare_group_inputs:
+    input:
+        bams=rmats_group_bams
+    output:
+        b1=f"{OUTDIR}/rmats/groups/{{group}}/inputs/b1.txt",
+        samples=f"{OUTDIR}/rmats/groups/{{group}}/inputs/samples.tsv"
+    wildcard_constraints:
+        group=RMATS_GROUP_REGEX
+    params:
+        group=lambda wc: wc.group,
+        samples=lambda wc: rmats_group_samples(wc.group)
+    log:
+        "logs/rmats/groups/{group}.prepare_inputs.log"
+    conda:
+        "envs/rmats2sashimiplot.yaml"
+    script:
+        "scripts/prepare_rmats_group_inputs.py"
+
+
+rule rmats_turbo_group:
+    input:
+        rmats_script=RMATS_SCRIPT,
+        rmats_ready=RMATS_READY,
+        b1=f"{OUTDIR}/rmats/groups/{{group}}/inputs/b1.txt",
+        bams=rmats_group_bams,
+        gtf=config["reference"]["gtf"]
+    output:
+        events=expand(
+            f"{OUTDIR}/rmats/groups/{{{{group}}}}/{{event_type}}.MATS.{{count_type}}.txt",
+            event_type=RMATS_EVENT_TYPES,
+            count_type=RMATS_COUNT_TYPES,
+        ),
+        summary=f"{OUTDIR}/rmats/groups/{{group}}/summary.txt"
+    wildcard_constraints:
+        group=RMATS_GROUP_REGEX
+    params:
+        read_type=RMATS_READ_TYPE,
+        read_length=RMATS_READ_LENGTH,
+        lib_type=RMATS_LIB_TYPE,
+        task=RMATS_TASK,
+        flags=" ".join(
+            [
+                "--variable-read-length" if RMATS_VARIABLE_READ_LENGTH else "",
+                "--allow-clipping" if RMATS_ALLOW_CLIPPING else "",
+                "--novelSS" if RMATS_NOVEL_SS else "",
+                "--statoff",
+                "--individual-counts" if RMATS_INDIVIDUAL_COUNTS else "",
+                RMATS_EXTRA_ARGS,
+            ]
+        ).strip()
+    log:
+        "logs/rmats/groups/{group}.rmats_turbo.log"
+    threads: int(config["threads"].get("rmats", config["threads"].get("star", 1)))
+    conda:
+        "envs/rmats_turbo.yaml"
+    shell:
+        r"""
+        set -euo pipefail
+        outdir=$(dirname "{output.summary}")
+        tmpdir="$outdir/tmp"
+        log_dir=$(dirname "{log}")
+        mkdir -p "$outdir" "$tmpdir" "$log_dir"
+        workdir_abs=$(pwd)
+        rmats_script_abs=$(realpath "{input.rmats_script}")
+        rmats_dir=$(dirname "$rmats_script_abs")
+        b1_abs=$(realpath "{input.b1}")
+        gtf_abs=$(realpath "{input.gtf}")
+        outdir_abs=$(realpath "$outdir")
+        tmpdir_abs=$(realpath "$tmpdir")
+        log_abs="$(cd "$log_dir" && pwd)/$(basename "{log}")"
+
+        cd "$rmats_dir"
+        python "$rmats_script_abs" \
+          --b1 "$b1_abs" \
+          --gtf "$gtf_abs" \
+          -t "{params.read_type}" \
+          --readLength {params.read_length} \
+          --nthread {threads} \
+          --od "$outdir_abs" \
+          --tmp "$tmpdir_abs" \
+          --task "{params.task}" \
+          --libType "{params.lib_type}" \
+          {params.flags} \
+          > "$log_abs" 2>&1
+
+        cd "$workdir_abs"
+        for event_file in {output.events:q}; do
+          test -s "$event_file" || (echo "Missing rMATS event file: $event_file" >> "$log_abs"; exit 1)
+        done
+        test -s "{output.summary}" || (echo "Missing rMATS summary: {output.summary}" >> "$log_abs"; exit 1)
+        """
+
+
+if SASHIMI_GFF3_FROM_GTF:
+    rule sashimi_gtf_to_gff3:
+        input:
+            gtf=config["reference"]["gtf"]
+        output:
+            gff3=SASHIMI_GFF3
+        log:
+            "logs/rmats/sashimi/prepare_gff3.log"
+        conda:
+            "envs/rmats2sashimiplot.yaml"
+        script:
+            "scripts/gtf_to_gff3_for_sashimi.py"
+
+
+rule rmats_prepare_sashimi_all_groups:
+    input:
+        bams=sashimi_all_group_bams,
+        bais=sashimi_all_group_bais
+    output:
+        b1=f"{OUTDIR}/rmats/sashimi/bsj/inputs/b1.txt",
+        b2=f"{OUTDIR}/rmats/sashimi/bsj/inputs/b2.txt",
+        group_info=f"{OUTDIR}/rmats/sashimi/bsj/inputs/grouping.gf",
+        samples=f"{OUTDIR}/rmats/sashimi/bsj/inputs/samples.tsv"
+    params:
+        group_names=DEG_GROUP_NAMES,
+        groups=DEG_GROUPS
+    log:
+        "logs/rmats/sashimi/bsj.prepare_groups.log"
+    conda:
+        "envs/rmats2sashimiplot.yaml"
+    script:
+        "scripts/prepare_rmats_sashimi_all_groups.py"
+
+
+rule rmats2sashimi_plot_bsj_events:
+    input:
+        script=RMATS2SASHIMI_SCRIPT,
+        ready=RMATS2SASHIMI_READY,
+        result=bsj_sashimi_result_path,
+        ciri3=f"{OUTDIR}/ciri3/all_samples.ciri3",
+        gff3=SASHIMI_GFF3,
+        b1=f"{OUTDIR}/rmats/sashimi/bsj/inputs/b1.txt",
+        b2=f"{OUTDIR}/rmats/sashimi/bsj/inputs/b2.txt",
+        group_info=f"{OUTDIR}/rmats/sashimi/bsj/inputs/grouping.gf",
+        bams=sashimi_all_group_bams,
+        bais=sashimi_all_group_bais
+    output:
+        manifest=f"{OUTDIR}/rmats/sashimi/bsj/{{method}}/{{comparison}}/manifest.tsv",
+        done=f"{OUTDIR}/rmats/sashimi/bsj/{{method}}/{{comparison}}/plots.done"
+    wildcard_constraints:
+        method=BSJ_SASHIMI_METHOD_REGEX,
+        comparison=CIRI3_DE_COMPARISON_REGEX
+    params:
+        outdir=lambda wc: f"{OUTDIR}/rmats/sashimi/bsj/{wc.method}/{wc.comparison}",
+        padj_cutoff=DEG_PADJ_CUTOFF,
+        lfc_cutoff=DEG_LFC_CUTOFF,
+        max_events=SASHIMI_MAX_EVENTS,
+        bsj_flank=SASHIMI_BSJ_FLANK,
+        min_counts=SASHIMI_MIN_COUNTS,
+        exon_s=SASHIMI_EXON_SCALE,
+        intron_s=SASHIMI_INTRON_SCALE,
+        font_size=SASHIMI_FONT_SIZE,
+        fig_width=SASHIMI_FIG_WIDTH,
+        fig_height=SASHIMI_FIG_HEIGHT,
+        label_b1=DEG_GROUP_NAMES[0] if DEG_GROUP_NAMES else "group_1",
+        label_b2="other_groups",
+        colors=SASHIMI_COLORS,
+        fail_on_error=SASHIMI_FAIL_ON_ERROR,
+        extra_args=SASHIMI_EXTRA_ARGS
+    log:
+        "logs/rmats/sashimi/bsj/{method}.{comparison}.log"
+    threads: int(config["threads"].get("sashimi", 1))
+    conda:
+        "envs/rmats2sashimiplot.yaml"
+    script:
+        "scripts/plot_bsj_sashimi_events.py"
+
+
 rule rmats_prepare_sashimi_groups:
     input:
         bams=rmats_comparison_bams,
@@ -262,6 +435,8 @@ rule rmats_prepare_sashimi_groups:
         b2_samples=lambda wc: rmats_comparison_control_samples(wc.comparison)
     log:
         "logs/rmats/sashimi/{comparison}.prepare_groups.log"
+    conda:
+        "envs/rmats2sashimiplot.yaml"
     script:
         "scripts/prepare_rmats_sashimi_groups.py"
 
