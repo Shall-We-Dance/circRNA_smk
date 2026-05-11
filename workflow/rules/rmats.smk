@@ -208,9 +208,8 @@ rule rmats_turbo_pairwise:
         r"""
         set -euo pipefail
         outdir=$(dirname "{output.summary}")
-        tmpdir="$outdir/tmp"
         log_dir=$(dirname "{log}")
-        mkdir -p "$outdir" "$tmpdir" "$log_dir"
+        mkdir -p "$outdir" "$log_dir"
         workdir_abs=$(pwd)
         rmats_script_abs=$(realpath "{input.rmats_script}")
         rmats_dir=$(dirname "$rmats_script_abs")
@@ -218,8 +217,17 @@ rule rmats_turbo_pairwise:
         b2_abs=$(realpath "{input.b2}")
         gtf_abs=$(realpath "{input.gtf}")
         outdir_abs=$(realpath "$outdir")
-        tmpdir_abs=$(realpath "$tmpdir")
         log_abs="$(cd "$log_dir" && pwd)/$(basename "{log}")"
+        tmpdir_abs="$outdir_abs/tmp"
+
+        if [ -z "$outdir_abs" ] || [ "$outdir_abs" = "/" ]; then
+          echo "Unsafe rMATS output directory: $outdir_abs" > "$log_abs"
+          exit 1
+        fi
+
+        echo "Cleaning rMATS tmp directory before run: $tmpdir_abs" > "$log_abs"
+        rm -rf "$tmpdir_abs"
+        mkdir -p "$tmpdir_abs"
 
         cd "$rmats_dir"
         python "$rmats_script_abs" \
@@ -234,7 +242,7 @@ rule rmats_turbo_pairwise:
           --task "{params.task}" \
           --libType "{params.lib_type}" \
           {params.flags} \
-          > "$log_abs" 2>&1
+          >> "$log_abs" 2>&1
 
         cd "$workdir_abs"
         for event_file in {output.events:q}; do
@@ -303,17 +311,25 @@ rule rmats_turbo_group:
         r"""
         set -euo pipefail
         outdir=$(dirname "{output.summary}")
-        tmpdir="$outdir/tmp"
         log_dir=$(dirname "{log}")
-        mkdir -p "$outdir" "$tmpdir" "$log_dir"
+        mkdir -p "$outdir" "$log_dir"
         workdir_abs=$(pwd)
         rmats_script_abs=$(realpath "{input.rmats_script}")
         rmats_dir=$(dirname "$rmats_script_abs")
         b1_abs=$(realpath "{input.b1}")
         gtf_abs=$(realpath "{input.gtf}")
         outdir_abs=$(realpath "$outdir")
-        tmpdir_abs=$(realpath "$tmpdir")
         log_abs="$(cd "$log_dir" && pwd)/$(basename "{log}")"
+        tmpdir_abs="$outdir_abs/tmp"
+
+        if [ -z "$outdir_abs" ] || [ "$outdir_abs" = "/" ]; then
+          echo "Unsafe rMATS output directory: $outdir_abs" > "$log_abs"
+          exit 1
+        fi
+
+        echo "Cleaning rMATS tmp directory before run: $tmpdir_abs" > "$log_abs"
+        rm -rf "$tmpdir_abs"
+        mkdir -p "$tmpdir_abs"
 
         cd "$rmats_dir"
         python "$rmats_script_abs" \
@@ -327,7 +343,7 @@ rule rmats_turbo_group:
           --task "{params.task}" \
           --libType "{params.lib_type}" \
           {params.flags} \
-          > "$log_abs" 2>&1
+          >> "$log_abs" 2>&1
 
         cd "$workdir_abs"
         for event_file in {output.events:q}; do
