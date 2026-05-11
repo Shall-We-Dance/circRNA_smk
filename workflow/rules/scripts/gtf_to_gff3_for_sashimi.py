@@ -41,7 +41,7 @@ def fmt_attrs(attrs):
 
 
 def merge_span(record, seqid, source, start, end, strand):
-    if not record:
+    if "start" not in record or "end" not in record:
         record.update(
             {
                 "seqid": seqid,

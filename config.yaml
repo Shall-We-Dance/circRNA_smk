@@ -183,10 +183,18 @@ sashimi:
   min_counts: 0
   exon_s: 1
   intron_s: 5
+  # Automatically enlarge BSJ sashimi PDFs for wider loci, more groups/samples,
+  # or long BSJ labels. The configured width/height/font act as starting values.
+  auto_scale: true
   font_size: 8
+  min_font_size: 6
   fig_width: 8
-  # 0 lets rmats2sashimiplot choose the default height.
+  # With auto_scale: false, 0 lets rmats2sashimiplot choose the default height.
   fig_height: 0
+  min_fig_width: 8
+  max_fig_width: 18
+  min_fig_height: 4.5
+  max_fig_height: 12
   fail_on_error: false
   colors:
     - "#4C78A8"

@@ -261,6 +261,7 @@ SASHIMI_FONT_SIZE = _numeric_config(
     "sashimi.font_size",
     minimum=1,
 )
+SASHIMI_AUTO_SCALE = _get_bool(sashimi_cfg, "auto_scale", True)
 SASHIMI_FIG_WIDTH = _numeric_config(
     sashimi_cfg,
     "fig_width",
@@ -277,6 +278,49 @@ SASHIMI_FIG_HEIGHT = _numeric_config(
     float,
     "sashimi.fig_height",
     minimum=0,
+)
+SASHIMI_MIN_FIG_WIDTH = _numeric_config(
+    sashimi_cfg,
+    "min_fig_width",
+    SASHIMI_FIG_WIDTH,
+    float,
+    "sashimi.min_fig_width",
+    minimum=0,
+    inclusive_min=False,
+)
+SASHIMI_MAX_FIG_WIDTH = _numeric_config(
+    sashimi_cfg,
+    "max_fig_width",
+    max(18, SASHIMI_MIN_FIG_WIDTH),
+    float,
+    "sashimi.max_fig_width",
+    minimum=SASHIMI_MIN_FIG_WIDTH,
+)
+SASHIMI_MIN_FIG_HEIGHT = _numeric_config(
+    sashimi_cfg,
+    "min_fig_height",
+    SASHIMI_FIG_HEIGHT if SASHIMI_FIG_HEIGHT > 0 else 4.5,
+    float,
+    "sashimi.min_fig_height",
+    minimum=0,
+    inclusive_min=False,
+)
+SASHIMI_MAX_FIG_HEIGHT = _numeric_config(
+    sashimi_cfg,
+    "max_fig_height",
+    max(12, SASHIMI_MIN_FIG_HEIGHT),
+    float,
+    "sashimi.max_fig_height",
+    minimum=SASHIMI_MIN_FIG_HEIGHT,
+)
+SASHIMI_MIN_FONT_SIZE = _numeric_config(
+    sashimi_cfg,
+    "min_font_size",
+    min(6, SASHIMI_FONT_SIZE),
+    int,
+    "sashimi.min_font_size",
+    minimum=1,
+    maximum=SASHIMI_FONT_SIZE,
 )
 SASHIMI_BSJ_FLANK = _numeric_config(
     sashimi_cfg,

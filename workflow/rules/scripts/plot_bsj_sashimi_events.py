@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from urllib.parse import quote
 
 
 def parse_float(value):
@@ -35,6 +36,202 @@ def unique_names(names):
             seen[base] += 1
             out.append(f"{base}_{seen[base]}")
     return out
+
+
+def clamp(value, minimum, maximum):
+    return max(minimum, min(maximum, value))
+
+
+def format_float(value):
+    return f"{float(value):.2f}".rstrip("0").rstrip(".")
+
+
+def gff3_attrs(attrs):
+    return ";".join(
+        f"{quote(str(key), safe='._:-')}={quote(str(value), safe='._:-')}"
+        for key, value in attrs.items()
+        if value not in (None, "")
+    )
+
+
+def parse_group_info(path):
+    group_count = 0
+    sample_indices = set()
+    max_label_len = 0
+    for line in Path(path).read_text().splitlines():
+        line = line.strip()
+        if not line or ":" not in line:
+            continue
+        group_name, indices_s = line.split(":", 1)
+        group_count += 1
+        max_label_len = max(max_label_len, len(group_name.strip()))
+        for value in indices_s.split(","):
+            value = value.strip()
+            if value:
+                sample_indices.add(value)
+    return {
+        "groups": max(group_count, 2),
+        "samples": max(len(sample_indices), 2),
+        "max_label_len": max_label_len,
+    }
+
+
+def scaled_plot_style(
+    event,
+    region_start,
+    region_end,
+    group_summary,
+    auto_scale,
+    base_width,
+    base_height,
+    min_width,
+    max_width,
+    min_height,
+    max_height,
+    base_font_size,
+    min_font_size,
+):
+    if not auto_scale:
+        return base_width, base_height, base_font_size
+
+    span = max(1, int(region_end) - int(region_start) + 1)
+    group_count = group_summary["groups"]
+    sample_count = group_summary["samples"]
+    label_len = max(
+        len(str(event.get("circRNA_ID", ""))),
+        len(str(event.get("gene_id", ""))),
+        group_summary["max_label_len"],
+    )
+
+    width_by_span = 6.5 + math.log2(max(2.0, span / 100.0)) * 1.25
+    width_by_label = min_width + max(0, label_len - 24) * 0.05
+    width_by_groups = min_width + max(0, group_count - 2) * 0.35
+    fig_width = clamp(
+        max(base_width, min_width, width_by_span, width_by_label, width_by_groups),
+        min_width,
+        max_width,
+    )
+
+    height_by_groups = 3.0 + group_count * 1.15 + max(0, sample_count - group_count) * 0.12
+    fig_height = clamp(
+        max(base_height if base_height > 0 else 0, min_height, height_by_groups),
+        min_height,
+        max_height,
+    )
+
+    font_size = int(base_font_size)
+    sample_density = sample_count / max(fig_width, 1)
+    if group_count >= 4 or sample_count >= 8 or span < 1000 or sample_density > 0.8:
+        font_size -= 1
+    if group_count >= 6 or sample_count >= 14 or span < 400 or label_len >= 45:
+        font_size -= 1
+    font_size = max(int(min_font_size), font_size)
+
+    return round(fig_width, 2), round(fig_height, 2), font_size
+
+
+def synthetic_bsj_gff3_lines(events):
+    lines = []
+    for index, event in enumerate(events, start=1):
+        start = int(event["start"])
+        end = int(event["end"])
+        span = max(1, end - start + 1)
+        anchor = max(1, min(50, span // 10 if span >= 10 else span))
+        left_end = min(end, start + anchor - 1)
+        right_start = max(start, end - anchor + 1)
+        feature_id = f"bsj-{index:05d}-{safe_name(event['circRNA_ID'])}"
+        name = event["gene_id"] or event["circRNA_ID"]
+        common = [
+            str(event["chrom"]),
+            "circRNA_smk",
+            None,
+            None,
+            None,
+            ".",
+            str(event["strand"]),
+            ".",
+            None,
+        ]
+        rows = [
+            (
+                "gene",
+                start,
+                end,
+                {
+                    "ID": f"{feature_id}.gene",
+                    "Name": name,
+                    "Alias": event["circRNA_ID"],
+                    "Note": "Synthetic BSJ annotation from circRNA DEG result",
+                },
+            ),
+            (
+                "mRNA",
+                start,
+                end,
+                {
+                    "ID": f"{feature_id}.tx",
+                    "Parent": f"{feature_id}.gene",
+                    "Name": event["circRNA_ID"],
+                    "Alias": name,
+                    "Note": "Back-splice junction span",
+                },
+            ),
+            (
+                "exon",
+                start,
+                left_end,
+                {
+                    "ID": f"{feature_id}.left_anchor",
+                    "Parent": f"{feature_id}.tx",
+                    "Name": "BSJ_left_anchor",
+                },
+            ),
+            (
+                "exon",
+                right_start,
+                end,
+                {
+                    "ID": f"{feature_id}.right_anchor",
+                    "Parent": f"{feature_id}.tx",
+                    "Name": "BSJ_right_anchor",
+                },
+            ),
+        ]
+        for feature, row_start, row_end, attrs in rows:
+            parts = list(common)
+            parts[2] = feature
+            parts[3] = str(row_start)
+            parts[4] = str(row_end)
+            parts[8] = gff3_attrs(attrs)
+            lines.append("\t".join(parts) + "\n")
+    return lines
+
+
+def write_augmented_gff3(base_gff3, augmented_gff3, events):
+    synthetic_lines = synthetic_bsj_gff3_lines(events)
+    augmented_gff3.parent.mkdir(parents=True, exist_ok=True)
+    wrote_synthetic = False
+    last_was_newline = True
+
+    with Path(base_gff3).open() as src, augmented_gff3.open("w") as out:
+        for line in src:
+            if line.strip() == "##FASTA" and not wrote_synthetic:
+                if not last_was_newline:
+                    out.write("\n")
+                out.write("###\n")
+                out.write("# Synthetic BSJ annotations added by circRNA_smk.\n")
+                out.writelines(synthetic_lines)
+                out.write("###\n")
+                wrote_synthetic = True
+            out.write(line)
+            last_was_newline = line.endswith("\n")
+        if not wrote_synthetic:
+            if not last_was_newline:
+                out.write("\n")
+            out.write("###\n")
+            out.write("# Synthetic BSJ annotations added by circRNA_smk.\n")
+            out.writelines(synthetic_lines)
+            out.write("###\n")
 
 
 def read_tabular_loose(path):
@@ -207,9 +404,11 @@ def row_to_event(row, method, strand_map, gene_map, padj_cutoff, lfc_cutoff):
 
 event_result = Path(snakemake.input.result)
 ciri3_annotation = Path(snakemake.input.ciri3)
-gff3 = Path(snakemake.input.gff3).resolve()
+base_gff3 = Path(snakemake.input.gff3).resolve()
 outdir = Path(snakemake.params.outdir)
 plots_root = outdir / "plots"
+annotation_root = outdir / "annotations"
+augmented_gff3 = (annotation_root / "bsj_augmented.gff3").resolve()
 manifest_path = Path(snakemake.output.manifest)
 done_path = Path(snakemake.output.done)
 log_path = Path(snakemake.log[0])
@@ -221,10 +420,20 @@ lfc_cutoff = float(snakemake.params.lfc_cutoff)
 max_events = int(snakemake.params.max_events)
 bsj_flank = int(snakemake.params.bsj_flank)
 fail_on_error = bool(snakemake.params.fail_on_error)
+auto_scale = bool(snakemake.params.auto_scale)
+base_fig_width = float(snakemake.params.fig_width)
+base_fig_height = float(snakemake.params.fig_height)
+base_font_size = int(snakemake.params.font_size)
+min_fig_width = float(snakemake.params.min_fig_width)
+max_fig_width = float(snakemake.params.max_fig_width)
+min_fig_height = float(snakemake.params.min_fig_height)
+max_fig_height = float(snakemake.params.max_fig_height)
+min_font_size = int(snakemake.params.min_font_size)
 
 if outdir.exists():
     shutil.rmtree(outdir)
 plots_root.mkdir(parents=True, exist_ok=True)
+annotation_root.mkdir(parents=True, exist_ok=True)
 manifest_path.parent.mkdir(parents=True, exist_ok=True)
 done_path.parent.mkdir(parents=True, exist_ok=True)
 log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -255,6 +464,8 @@ for event in events:
     seen.add(event["circRNA_ID"])
     deduped.append(event)
 events = deduped[:max_events] if max_events > 0 else deduped
+write_augmented_gff3(base_gff3, augmented_gff3, events)
+group_summary = parse_group_info(snakemake.input.group_info)
 
 base_cmd = [
     sys.executable,
@@ -275,13 +486,7 @@ base_cmd = [
     str(Path(snakemake.input.group_info).resolve()),
     "--min-counts",
     str(snakemake.params.min_counts),
-    "--font-size",
-    str(snakemake.params.font_size),
-    "--fig-width",
-    str(snakemake.params.fig_width),
 ]
-if float(snakemake.params.fig_height) > 0:
-    base_cmd.extend(["--fig-height", str(snakemake.params.fig_height)])
 colors = list(snakemake.params.colors)
 if colors:
     base_cmd.extend(["--color", ",".join(colors)])
@@ -301,13 +506,32 @@ with open(log_path, "w") as log_handle:
         f"Selected BSJs: {len(events)}\n"
         f"Thresholds: padj/FDR < {padj_cutoff}, |effect| >= {lfc_cutoff} "
         f"when an effect column is available; flank={bsj_flank}\n\n"
+        f"Base GFF3: {base_gff3}\n"
+        f"Augmented GFF3: {augmented_gff3}\n"
+        f"Auto scale: {auto_scale}; groups={group_summary['groups']}; "
+        f"samples={group_summary['samples']}\n\n"
     )
 
     for index, event in enumerate(events, start=1):
         region_start = max(1, int(event["start"]) - bsj_flank)
         region_end = int(event["end"]) + bsj_flank
+        fig_width, fig_height, font_size = scaled_plot_style(
+            event,
+            region_start,
+            region_end,
+            group_summary,
+            auto_scale,
+            base_fig_width,
+            base_fig_height,
+            min_fig_width,
+            max_fig_width,
+            min_fig_height,
+            max_fig_height,
+            base_font_size,
+            min_font_size,
+        )
         coordinate = (
-            f"{event['chrom']}:{event['strand']}:{region_start}:{region_end}:{gff3}"
+            f"{event['chrom']}:{event['strand']}:{region_start}:{region_end}:{augmented_gff3}"
         )
         event_key = (
             f"{index:05d}_{safe_name(event['gene_id'] or 'gene')}_"
@@ -316,7 +540,15 @@ with open(log_path, "w") as log_handle:
         plot_outdir = plots_root / event_key
         plot_outdir.mkdir(parents=True, exist_ok=True)
 
-        cmd = base_cmd + [
+        style_args = [
+            "--font-size",
+            str(font_size),
+            "--fig-width",
+            format_float(fig_width),
+        ]
+        if fig_height > 0:
+            style_args.extend(["--fig-height", format_float(fig_height)])
+        cmd = base_cmd + style_args + [
             "-c",
             coordinate,
             "-o",
@@ -358,6 +590,10 @@ with open(log_path, "w") as log_handle:
                 "padj": "" if event["padj"] is None else event["padj"],
                 "effect": "" if event["effect"] is None else event["effect"],
                 "coordinate": coordinate,
+                "annotation_gff3": str(augmented_gff3),
+                "fig_width": format_float(fig_width),
+                "fig_height": format_float(fig_height) if fig_height > 0 else "",
+                "font_size": font_size,
                 "plot_dir": str(plot_outdir.resolve()),
                 "pdfs": ",".join(pdfs),
                 "status": status,
@@ -382,6 +618,10 @@ fieldnames = [
     "padj",
     "effect",
     "coordinate",
+    "annotation_gff3",
+    "fig_width",
+    "fig_height",
+    "font_size",
     "plot_dir",
     "pdfs",
     "status",
