@@ -9,6 +9,13 @@ import sys
 from pathlib import Path
 from urllib.parse import quote
 
+import matplotlib
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import pysam
+from matplotlib.patches import Arc
+
 
 def parse_float(value):
     try:
@@ -105,6 +112,8 @@ def read_sashimi_samples(path):
         groups = []
         group_to_samples = {}
         samples = []
+        sample_to_bam = {}
+        sample_to_index = {}
         for row in reader:
             sample = str(row.get("sample", "")).strip()
             group = str(row.get("group", "")).strip()
@@ -115,6 +124,12 @@ def read_sashimi_samples(path):
                 groups.append(group)
             group_to_samples[group].append(sample)
             samples.append(sample)
+            bam = str(row.get("bam", "")).strip()
+            if bam:
+                sample_to_bam[sample] = bam
+            index = str(row.get("rmats2sashimi_index", "")).strip()
+            if index:
+                sample_to_index[sample] = index
 
     if not groups:
         raise ValueError(f"No sample/group records in sashimi samples table: {path}")
@@ -122,6 +137,8 @@ def read_sashimi_samples(path):
         "groups": groups,
         "group_to_samples": group_to_samples,
         "samples": samples,
+        "sample_to_bam": sample_to_bam,
+        "sample_to_index": sample_to_index,
     }
 
 
@@ -493,6 +510,470 @@ def collect_ciri3_bsj_signal(event, bsj_matrix, fsj_matrix, sample_info):
     }
 
 
+def sample_signal_by_name(signal):
+    return {row["sample"]: row for row in signal["sample_rows"]}
+
+
+def event_anchor_length(event):
+    start = int(event["start"])
+    end = int(event["end"])
+    span = max(1, end - start + 1)
+    max_left = max(1, start - 1)
+    return max(1, min(50, max_left, max(8, span // 10)))
+
+
+def event_bam_header(source_bam, event, region_end, anchor):
+    chrom = str(event["chrom"])
+    minimum_length = max(int(region_end), int(event["end"]) + anchor + 100)
+    header = None
+    if source_bam:
+        source_path = Path(source_bam)
+        if source_path.exists():
+            try:
+                with pysam.AlignmentFile(str(source_path), "rb") as src:
+                    header = src.header.to_dict()
+            except (OSError, ValueError):
+                header = None
+
+    if header is None:
+        header = {"HD": {"VN": "1.6", "SO": "coordinate"}, "SQ": []}
+    header.setdefault("HD", {}).setdefault("VN", "1.6")
+    header.setdefault("SQ", [])
+
+    sq_by_name = {entry.get("SN"): entry for entry in header["SQ"]}
+    if chrom not in sq_by_name:
+        header["SQ"].append({"SN": chrom, "LN": minimum_length})
+    else:
+        try:
+            current_length = int(sq_by_name[chrom].get("LN", 0))
+        except (TypeError, ValueError):
+            current_length = 0
+        if current_length < minimum_length:
+            sq_by_name[chrom]["LN"] = minimum_length
+    return header
+
+
+def write_ciri3_pseudo_junction_reads(out_bam, event, bsj_count, read_prefix):
+    count = max(0, int(round(float(bsj_count))))
+    if count <= 0:
+        return 0
+
+    chrom = str(event["chrom"])
+    start = int(event["start"])
+    end = int(event["end"])
+    if end - start <= 1:
+        return 0
+
+    anchor = event_anchor_length(event)
+    skip = end - start - 1
+    sequence = "A" * (anchor * 2)
+    qualities = pysam.qualitystring_to_array("I" * len(sequence))
+    reference_id = out_bam.get_tid(chrom)
+    if reference_id < 0:
+        return 0
+
+    for read_index in range(1, count + 1):
+        aln = pysam.AlignedSegment()
+        aln.query_name = f"{read_prefix}_{read_index}"
+        aln.query_sequence = sequence
+        aln.flag = 16 if event.get("strand") == "-" else 0
+        aln.reference_id = reference_id
+        aln.reference_start = start - anchor
+        aln.mapping_quality = 255
+        aln.cigartuples = [(0, anchor), (3, skip), (0, anchor)]
+        aln.query_qualities = qualities
+        aln.set_tag("NH", 1, value_type="i")
+        aln.set_tag("XS", event.get("strand", "+"), value_type="A")
+        aln.set_tag("ZB", "CIRI3_BSJ", value_type="Z")
+        out_bam.write(aln)
+    return count
+
+
+def write_event_bam(
+    event,
+    signal,
+    sample,
+    source_bam,
+    out_bam,
+    region_start,
+    region_end,
+    include_real_reads,
+    log_handle,
+):
+    out_bam = Path(out_bam)
+    out_bam.parent.mkdir(parents=True, exist_ok=True)
+    unsorted_bam = out_bam.with_suffix(".unsorted.bam")
+    anchor = event_anchor_length(event)
+    header = event_bam_header(source_bam, event, region_end, anchor)
+    chrom = str(event["chrom"])
+    copied_reads = 0
+    sample_signal = sample_signal_by_name(signal).get(sample, {})
+    bsj_count = float(sample_signal.get("bsj_count", 0.0))
+
+    with pysam.AlignmentFile(str(unsorted_bam), "wb", header=header) as out:
+        if include_real_reads and source_bam:
+            source_path = Path(source_bam)
+            if source_path.exists():
+                try:
+                    with pysam.AlignmentFile(str(source_path), "rb") as src:
+                        if chrom in src.references:
+                            for read in src.fetch(chrom, max(0, int(region_start) - 1), int(region_end)):
+                                out.write(read)
+                                copied_reads += 1
+                        else:
+                            log_handle.write(
+                                f"[{event['circRNA_ID']}][{sample}] source BAM lacks chrom {chrom}: "
+                                f"{source_path}\n"
+                            )
+                except (OSError, ValueError) as exc:
+                    log_handle.write(
+                        f"[{event['circRNA_ID']}][{sample}] could not copy real BAM reads from "
+                        f"{source_path}: {exc}\n"
+                    )
+
+        synthetic_reads = write_ciri3_pseudo_junction_reads(
+            out,
+            event,
+            bsj_count,
+            f"{safe_name(sample)}_{safe_name(event['circRNA_ID'])}_CIRI3BSJ",
+        )
+
+    pysam.sort("-o", str(out_bam), str(unsorted_bam))
+    pysam.index(str(out_bam))
+    unsorted_bam.unlink(missing_ok=True)
+    return {
+        "bam": str(out_bam.resolve()),
+        "source_bam": str(source_bam or ""),
+        "copied_reads": copied_reads,
+        "synthetic_bsj_reads": synthetic_reads,
+    }
+
+
+def write_rmats2sashimi_inputs(input_dir, sample_info, sample_to_bam):
+    input_dir = Path(input_dir)
+    input_dir.mkdir(parents=True, exist_ok=True)
+    group_names = list(sample_info["groups"])
+    if len(group_names) < 2:
+        raise ValueError("CIRI3 BSJ MISO input generation requires at least two groups.")
+
+    first_group_samples = list(sample_info["group_to_samples"][group_names[0]])
+    other_samples = [
+        sample
+        for group in group_names[1:]
+        for sample in sample_info["group_to_samples"][group]
+    ]
+    ordered_samples = first_group_samples + other_samples
+    sample_to_index = {sample: index for index, sample in enumerate(ordered_samples, start=1)}
+
+    b1_path = input_dir / "b1.txt"
+    b2_path = input_dir / "b2.txt"
+    group_info_path = input_dir / "grouping.gf"
+    samples_path = input_dir / "samples.tsv"
+
+    b1_path.write_text(",".join(sample_to_bam[sample] for sample in first_group_samples) + "\n")
+    b2_path.write_text(",".join(sample_to_bam[sample] for sample in other_samples) + "\n")
+    with group_info_path.open("w") as handle:
+        for group in group_names:
+            indices = [str(sample_to_index[sample]) for sample in sample_info["group_to_samples"][group]]
+            handle.write(f"{group}: {','.join(indices)}\n")
+    with samples_path.open("w") as handle:
+        handle.write("sample\tgroup\trmats2sashimi_index\tbam\n")
+        for group in group_names:
+            for sample in sample_info["group_to_samples"][group]:
+                handle.write(
+                    f"{sample}\t{group}\t{sample_to_index[sample]}\t{sample_to_bam[sample]}\n"
+                )
+
+    return {
+        "b1": str(b1_path.resolve()),
+        "b2": str(b2_path.resolve()),
+        "group_info": str(group_info_path.resolve()),
+        "samples": str(samples_path.resolve()),
+    }
+
+
+def build_ciri3_miso_inputs(
+    event,
+    signal,
+    sample_info,
+    event_key,
+    plot_outdir,
+    region_start,
+    region_end,
+    include_real_reads,
+    log_handle,
+):
+    input_root = Path(plot_outdir) / "ciri3_miso_inputs"
+    bam_root = input_root / "bams"
+    sample_to_bam = {}
+    bam_rows = []
+    for index, sample in enumerate(sample_info["samples"], start=1):
+        out_bam = bam_root / f"{index:03d}_{safe_name(sample)}.bam"
+        source_bam = sample_info["sample_to_bam"].get(sample, "")
+        row = write_event_bam(
+            event,
+            signal,
+            sample,
+            source_bam,
+            out_bam,
+            region_start,
+            region_end,
+            include_real_reads,
+            log_handle,
+        )
+        sample_to_bam[sample] = row["bam"]
+        bam_rows.append(row)
+
+    input_files = write_rmats2sashimi_inputs(input_root, sample_info, sample_to_bam)
+    synthetic_reads = sum(row["synthetic_bsj_reads"] for row in bam_rows)
+    copied_reads = sum(row["copied_reads"] for row in bam_rows)
+    log_handle.write(
+        f"[{event_key}][ciri3_miso_inputs] mode="
+        f"{'real_plus_ciri3_bsj' if include_real_reads else 'ciri3_bsj_only'} "
+        f"synthetic_bsj_reads={synthetic_reads} copied_real_reads={copied_reads} "
+        f"input_dir={input_root.resolve()}\n"
+    )
+    return {
+        **input_files,
+        "bam_source": "real_BAM_plus_CIRI3_BSJ_pseudo_reads"
+        if include_real_reads
+        else "CIRI3_BSJ_pseudo_reads",
+        "synthetic_bsj_reads": synthetic_reads,
+        "copied_real_reads": copied_reads,
+        "input_dir": str(input_root.resolve()),
+    }
+
+
+def write_ciri3_signal_table(path, signal):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fieldnames = [
+        "level",
+        "group",
+        "sample",
+        "n_samples",
+        "n_bsj_positive",
+        "bsj_count",
+        "fsj_count",
+        "junction_ratio",
+    ]
+    with path.open("w", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames, delimiter="\t")
+        writer.writeheader()
+        for row in signal["group_rows"]:
+            writer.writerow(
+                {
+                    "level": "group",
+                    "group": row["group"],
+                    "sample": "",
+                    "n_samples": row["n_samples"],
+                    "n_bsj_positive": row["n_bsj_positive"],
+                    "bsj_count": format_count(row["bsj_count"]),
+                    "fsj_count": format_count(row["fsj_count"]),
+                    "junction_ratio": format_ratio(row["junction_ratio"]),
+                }
+            )
+        for row in signal["sample_rows"]:
+            writer.writerow(
+                {
+                    "level": "sample",
+                    "group": row["group"],
+                    "sample": row["sample"],
+                    "n_samples": "",
+                    "n_bsj_positive": "",
+                    "bsj_count": format_count(row["bsj_count"]),
+                    "fsj_count": format_count(row["fsj_count"]),
+                    "junction_ratio": format_ratio(row["junction_ratio"]),
+                }
+            )
+
+
+def run_ciri3_bsj_signal_plot(
+    event,
+    signal,
+    region_start,
+    region_end,
+    plot_outdir,
+    fig_width,
+    fig_height,
+    font_size,
+    colors,
+    event_key,
+    log_handle,
+    plot_label,
+):
+    try:
+        plot_outdir.mkdir(parents=True, exist_ok=True)
+        sashimi_dir = plot_outdir / "Sashimi_plot"
+        sashimi_dir.mkdir(parents=True, exist_ok=True)
+        source_data = plot_outdir / "ciri3_bsj_fsj_signal.tsv"
+        write_ciri3_signal_table(source_data, signal)
+
+        group_rows = signal["group_rows"]
+        group_count = max(1, len(group_rows))
+        width = max(float(fig_width), 8.0)
+        height = max(float(fig_height) if fig_height > 0 else 0.0, 2.8 + group_count * 0.85)
+        height = min(max(height, 4.0), 14.0)
+        font_size = max(int(font_size), 6)
+
+        fig, ax = plt.subplots(figsize=(width, height))
+        start = int(event["start"])
+        end = int(event["end"])
+        if end <= start:
+            end = start + 1
+        x_min = min(int(region_start), start)
+        x_max = max(int(region_end), end)
+        if x_max <= x_min:
+            x_max = x_min + 1
+        ax.set_xlim(x_min, x_max)
+        ax.set_ylim(0, group_count + 1.2)
+
+        max_bsj = max((row["bsj_count"] for row in group_rows), default=0.0)
+        max_fsj = max((row["fsj_count"] for row in group_rows), default=0.0)
+        label_font = max(font_size - 1, 6)
+
+        for idx, row in enumerate(group_rows):
+            y = group_count - idx
+            color = colors[idx % len(colors)] if colors else f"C{idx}"
+            fsj = row["fsj_count"]
+            bsj = row["bsj_count"]
+            if fsj > 0:
+                fsj_width = 0.8 + 3.0 * math.sqrt(fsj / max_fsj) if max_fsj > 0 else 0.8
+                ax.plot(
+                    [start, end],
+                    [y, y],
+                    color=color,
+                    linewidth=fsj_width,
+                    alpha=0.28,
+                    solid_capstyle="round",
+                )
+            else:
+                ax.plot([start, end], [y, y], color="0.82", linewidth=0.8, alpha=0.7)
+
+            if bsj > 0:
+                arc_width = 1.2 + 5.0 * math.sqrt(bsj / max_bsj) if max_bsj > 0 else 1.2
+                arc_height = max(0.45, 0.18 + min(0.75, math.log2(bsj + 1) * 0.18))
+                arc = Arc(
+                    ((start + end) / 2.0, y),
+                    width=(end - start),
+                    height=arc_height,
+                    theta1=0,
+                    theta2=180,
+                    linewidth=arc_width,
+                    color=color,
+                    alpha=0.95,
+                )
+                ax.add_patch(arc)
+                ax.text(
+                    (start + end) / 2.0,
+                    y + arc_height / 2.0 + 0.08,
+                    format_count(bsj),
+                    ha="center",
+                    va="bottom",
+                    fontsize=label_font,
+                    color=color,
+                )
+
+            ax.vlines([start, end], y - 0.12, y + 0.12, color="0.25", linewidth=0.8)
+            ax.text(
+                -0.02,
+                y,
+                row["group"],
+                transform=ax.get_yaxis_transform(),
+                ha="right",
+                va="center",
+                fontsize=font_size,
+            )
+            ax.text(
+                1.01,
+                y,
+                (
+                    f"BSJ={format_count(bsj)}  FSJ={format_count(fsj)}  "
+                    f"JR={format_ratio(row['junction_ratio'])}  "
+                    f"n+={row['n_bsj_positive']}/{row['n_samples']}"
+                ),
+                transform=ax.get_yaxis_transform(),
+                ha="left",
+                va="center",
+                fontsize=label_font,
+            )
+
+        ax.axvline(start, color="0.35", linewidth=0.8, linestyle=":")
+        ax.axvline(end, color="0.35", linewidth=0.8, linestyle=":")
+        ax.set_yticks([])
+        ax.set_xlabel(f"{event['chrom']} coordinate", fontsize=label_font)
+        ax.set_title(
+            (
+                f"{event['gene_id'] or event['circRNA_ID']} | {event['circRNA_ID']}\n"
+                "CIRI3 BSJ_Matrix / FSJ_Matrix signal"
+            ),
+            fontsize=font_size + 1,
+        )
+        ax.text(
+            0.01,
+            0.02,
+            (
+                "Arc: CIRI3 BSJ count; baseline: CIRI3 FSJ count; "
+                "JR=2*BSJ/(2*BSJ+FSJ)"
+            ),
+            transform=ax.transAxes,
+            ha="left",
+            va="bottom",
+            fontsize=label_font,
+            color="0.25",
+        )
+        if not signal["matrix_row_found"]:
+            ax.text(
+                0.5,
+                0.5,
+                "No matching CIRI3 BSJ/FSJ matrix row",
+                transform=ax.transAxes,
+                ha="center",
+                va="center",
+                fontsize=font_size,
+                color="0.35",
+            )
+        for spine in ["left", "right", "top"]:
+            ax.spines[spine].set_visible(False)
+        fig.tight_layout()
+
+        pdf_path = sashimi_dir / f"{event_key}.ciri3_bsj_fsj_signal.pdf"
+        fig.savefig(pdf_path, bbox_inches="tight")
+        plt.close(fig)
+        pdfs = [str(pdf_path.resolve())] if pdf_path.is_file() else []
+        status = "ok" if pdfs else "failed"
+        log_handle.write(
+            f"[{event_key}][{plot_label}_bsj_signal] status={status} "
+            f"pdfs={len(pdfs)} total_bsj={format_count(signal['total_bsj'])} "
+            f"total_fsj={format_count(signal['total_fsj'])}\n\n"
+        )
+        return {
+            "plot_dir": str(plot_outdir.resolve()),
+            "pdfs": pdfs,
+            "source_data": str(source_data.resolve()),
+            "status": status,
+            "returncode": 0 if status == "ok" else 1,
+        }
+    except Exception as exc:
+        log_handle.write(f"[{event_key}][{plot_label}_bsj_signal] failed: {exc}\n\n")
+        return {
+            "plot_dir": str(plot_outdir.resolve()),
+            "pdfs": [],
+            "source_data": "",
+            "status": "failed",
+            "returncode": 1,
+        }
+
+
+def combine_plot_results(miso_result, signal_result):
+    combined = dict(miso_result)
+    combined["pdfs"] = sorted(set(miso_result["pdfs"] + signal_result["pdfs"]))
+    combined["signal_pdfs"] = signal_result["pdfs"]
+    combined["signal_source_data"] = signal_result["source_data"]
+    combined["status"] = "ok" if miso_result["status"] == "ok" and signal_result["status"] == "ok" else "failed"
+    combined["returncode"] = max(int(miso_result["returncode"]), int(signal_result["returncode"]))
+    return combined
+
+
 def read_tabular_loose(path):
     lines = [
         line.rstrip("\n")
@@ -752,35 +1233,39 @@ for event in events:
     event["bsj_matrix_row_found"] = "yes" if signal["matrix_row_found"] else "no"
 write_augmented_gff3(base_gff3, augmented_gff3, events)
 
-base_cmd = [
-    sys.executable,
-    str(Path(snakemake.input.script).resolve()),
-    "--b1",
-    str(Path(snakemake.input.b1).resolve()),
-    "--b2",
-    str(Path(snakemake.input.b2).resolve()),
-    "--l1",
-    str(snakemake.params.label_b1),
-    "--l2",
-    str(snakemake.params.label_b2),
-    "--exon_s",
-    str(snakemake.params.exon_s),
-    "--intron_s",
-    str(snakemake.params.intron_s),
-    "--group-info",
-    str(Path(snakemake.input.group_info).resolve()),
-    "--min-counts",
-    str(snakemake.params.min_counts),
-]
 colors = list(snakemake.params.colors)
 plot_colors = []
 if colors:
     plot_colors = colors[: group_summary["groups"]]
-    if len(plot_colors) == group_summary["groups"]:
-        base_cmd.extend(["--color", ",".join(plot_colors)])
 extra_args = str(snakemake.params.extra_args or "")
-if extra_args:
-    base_cmd.extend(shlex.split(extra_args))
+
+
+def make_base_cmd(b1_path, b2_path, group_info_path):
+    cmd = [
+        sys.executable,
+        str(Path(snakemake.input.script).resolve()),
+        "--b1",
+        str(Path(b1_path).resolve()),
+        "--b2",
+        str(Path(b2_path).resolve()),
+        "--l1",
+        str(snakemake.params.label_b1),
+        "--l2",
+        str(snakemake.params.label_b2),
+        "--exon_s",
+        str(snakemake.params.exon_s),
+        "--intron_s",
+        str(snakemake.params.intron_s),
+        "--group-info",
+        str(Path(group_info_path).resolve()),
+        "--min-counts",
+        str(snakemake.params.min_counts),
+    ]
+    if colors and len(plot_colors) == group_summary["groups"]:
+        cmd.extend(["--color", ",".join(plot_colors)])
+    if extra_args:
+        cmd.extend(shlex.split(extra_args))
+    return cmd
 
 env = os.environ.copy()
 env.setdefault("MPLBACKEND", "Agg")
@@ -800,6 +1285,8 @@ with open(log_path, "w") as log_handle:
         f"BSJ-only plot directory: {bsj_only_plots_root.resolve()}\n"
         f"BSJ-only GFF3 directory: {bsj_only_annotation_root.resolve()}\n"
         f"BSJ labels: CIRI3 BSJ_Matrix / FSJ_Matrix fields embedded in synthetic GFF3\n"
+        f"CIRI3 BSJ loading: event-level pseudo-BAM junction reads are generated "
+        f"and passed to rmats2sashimiplot/MISO\n"
         f"CIRI3 BSJ matrix: {bsj_matrix_path.resolve()}\n"
         f"CIRI3 FSJ matrix: {fsj_matrix_path.resolve()}\n"
         f"Auto scale: {auto_scale}; groups={group_summary['groups']}; "
@@ -846,8 +1333,20 @@ with open(log_path, "w") as log_handle:
         ]
         if fig_height > 0:
             style_args.extend(["--fig-height", format_float(fig_height)])
-        full_plot = run_sashimi_plot(
-            base_cmd,
+        bsj_signal = event["bsj_signal"]
+        full_inputs = build_ciri3_miso_inputs(
+            event,
+            bsj_signal,
+            sample_info,
+            event_key,
+            plots_root / event_key,
+            region_start,
+            region_end,
+            True,
+            log_handle,
+        )
+        full_miso_plot = run_sashimi_plot(
+            make_base_cmd(full_inputs["b1"], full_inputs["b2"], full_inputs["group_info"]),
             style_args,
             coordinate,
             plots_root / event_key,
@@ -856,9 +1355,38 @@ with open(log_path, "w") as log_handle:
             event_key,
             "full",
         )
-        bsj_signal = event["bsj_signal"]
-        bsj_only_plot = run_sashimi_plot(
-            base_cmd,
+        full_signal_plot = run_ciri3_bsj_signal_plot(
+            event,
+            bsj_signal,
+            region_start,
+            region_end,
+            plots_root / event_key,
+            fig_width,
+            fig_height,
+            font_size,
+            colors,
+            event_key,
+            log_handle,
+            "full",
+        )
+        full_plot = combine_plot_results(full_miso_plot, full_signal_plot)
+        bsj_only_inputs = build_ciri3_miso_inputs(
+            event,
+            bsj_signal,
+            sample_info,
+            event_key,
+            bsj_only_plots_root / event_key,
+            region_start,
+            region_end,
+            False,
+            log_handle,
+        )
+        bsj_only_miso_plot = run_sashimi_plot(
+            make_base_cmd(
+                bsj_only_inputs["b1"],
+                bsj_only_inputs["b2"],
+                bsj_only_inputs["group_info"],
+            ),
             style_args,
             bsj_only_coordinate,
             bsj_only_plots_root / event_key,
@@ -867,6 +1395,21 @@ with open(log_path, "w") as log_handle:
             event_key,
             "bsj_only",
         )
+        bsj_only_signal_plot = run_ciri3_bsj_signal_plot(
+            event,
+            bsj_signal,
+            region_start,
+            region_end,
+            bsj_only_plots_root / event_key,
+            fig_width,
+            fig_height,
+            font_size,
+            colors,
+            event_key,
+            log_handle,
+            "bsj_only",
+        )
+        bsj_only_plot = combine_plot_results(bsj_only_miso_plot, bsj_only_signal_plot)
         failed_variants = [
             label
             for label, result in (("full", full_plot), ("bsj_only", bsj_only_plot))
@@ -897,6 +1440,15 @@ with open(log_path, "w") as log_handle:
                 "bsj_total_fsj": format_count(bsj_signal["total_fsj"]),
                 "bsj_junction_ratio": format_ratio(bsj_signal["junction_ratio"]),
                 "bsj_matrix_row_found": event["bsj_matrix_row_found"],
+                "bsj_signal_pdfs": ",".join(full_plot["signal_pdfs"]),
+                "bsj_signal_source_data": full_plot["signal_source_data"],
+                "miso_bam_source": full_inputs["bam_source"],
+                "miso_input_dir": full_inputs["input_dir"],
+                "miso_input_b1": full_inputs["b1"],
+                "miso_input_b2": full_inputs["b2"],
+                "miso_input_group_info": full_inputs["group_info"],
+                "miso_synthetic_bsj_reads": full_inputs["synthetic_bsj_reads"],
+                "miso_copied_real_reads": full_inputs["copied_real_reads"],
                 "coordinate": coordinate,
                 "annotation_gff3": str(augmented_gff3),
                 "bsj_only_coordinate": bsj_only_coordinate,
@@ -912,10 +1464,18 @@ with open(log_path, "w") as log_handle:
                 "bsj_only_pdfs": ",".join(bsj_only_plot["pdfs"]),
                 "bsj_only_status": bsj_only_plot["status"],
                 "bsj_only_returncode": bsj_only_plot["returncode"],
-                "bsj_only_source": "rmats2sashimiplot_MISO",
+                "bsj_only_source": "rmats2sashimiplot_MISO_from_CIRI3_BSJ_pseudo_BAM",
                 "bsj_only_bsj_matrix": str(bsj_matrix_path.resolve()),
                 "bsj_only_fsj_matrix": str(fsj_matrix_path.resolve()),
-                "bsj_only_source_data": "",
+                "bsj_only_miso_bam_source": bsj_only_inputs["bam_source"],
+                "bsj_only_miso_input_dir": bsj_only_inputs["input_dir"],
+                "bsj_only_miso_input_b1": bsj_only_inputs["b1"],
+                "bsj_only_miso_input_b2": bsj_only_inputs["b2"],
+                "bsj_only_miso_input_group_info": bsj_only_inputs["group_info"],
+                "bsj_only_miso_synthetic_bsj_reads": bsj_only_inputs["synthetic_bsj_reads"],
+                "bsj_only_miso_copied_real_reads": bsj_only_inputs["copied_real_reads"],
+                "bsj_only_source_data": bsj_only_plot["signal_source_data"],
+                "bsj_only_signal_pdfs": ",".join(bsj_only_plot["signal_pdfs"]),
                 "bsj_only_total_bsj": format_count(bsj_signal["total_bsj"]),
                 "bsj_only_total_fsj": format_count(bsj_signal["total_fsj"]),
                 "bsj_only_junction_ratio": format_ratio(bsj_signal["junction_ratio"]),
@@ -945,6 +1505,15 @@ fieldnames = [
     "bsj_total_fsj",
     "bsj_junction_ratio",
     "bsj_matrix_row_found",
+    "bsj_signal_pdfs",
+    "bsj_signal_source_data",
+    "miso_bam_source",
+    "miso_input_dir",
+    "miso_input_b1",
+    "miso_input_b2",
+    "miso_input_group_info",
+    "miso_synthetic_bsj_reads",
+    "miso_copied_real_reads",
     "coordinate",
     "annotation_gff3",
     "bsj_only_coordinate",
@@ -963,7 +1532,15 @@ fieldnames = [
     "bsj_only_source",
     "bsj_only_bsj_matrix",
     "bsj_only_fsj_matrix",
+    "bsj_only_miso_bam_source",
+    "bsj_only_miso_input_dir",
+    "bsj_only_miso_input_b1",
+    "bsj_only_miso_input_b2",
+    "bsj_only_miso_input_group_info",
+    "bsj_only_miso_synthetic_bsj_reads",
+    "bsj_only_miso_copied_real_reads",
     "bsj_only_source_data",
+    "bsj_only_signal_pdfs",
     "bsj_only_total_bsj",
     "bsj_only_total_fsj",
     "bsj_only_junction_ratio",
