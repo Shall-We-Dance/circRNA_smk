@@ -165,6 +165,8 @@ sashimi:
   # plot significant BSJ sites from DESeq2 and enabled CIRI3 DEG methods.
   # Each method/comparison gets its own directory, and every selected BSJ is
   # plotted across all deg.groups with rmats2sashimiplot coordinate mode.
+  # The workflow keeps the full annotation plot under plots/ and also writes a
+  # BSJ-only annotation-track version under plots_bsj_only/.
   enabled: true
   repo_url: "https://github.com/Xinglab/rmats2sashimiplot.git"
   ref: "v3.0.0"

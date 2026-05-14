@@ -401,7 +401,9 @@ rule rmats2sashimi_plot_bsj_events:
         bais=sashimi_all_group_bais
     output:
         manifest=f"{OUTDIR}/rmats/sashimi/bsj/{{method}}/{{comparison}}/manifest.tsv",
-        done=f"{OUTDIR}/rmats/sashimi/bsj/{{method}}/{{comparison}}/plots.done"
+        done=f"{OUTDIR}/rmats/sashimi/bsj/{{method}}/{{comparison}}/plots.done",
+        plots=directory(f"{OUTDIR}/rmats/sashimi/bsj/{{method}}/{{comparison}}/plots"),
+        bsj_only_plots=directory(f"{OUTDIR}/rmats/sashimi/bsj/{{method}}/{{comparison}}/plots_bsj_only")
     wildcard_constraints:
         method=BSJ_SASHIMI_METHOD_REGEX,
         comparison=CIRI3_DE_COMPARISON_REGEX

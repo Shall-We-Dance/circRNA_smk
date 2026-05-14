@@ -46,6 +46,11 @@ def format_float(value):
     return f"{float(value):.2f}".rstrip("0").rstrip(".")
 
 
+def snakemake_named_path(collection, name, fallback):
+    value = getattr(collection, name, None)
+    return Path(value) if value not in (None, "") else fallback
+
+
 def gff3_attrs(attrs):
     return ";".join(
         f"{quote(str(key), safe='._:-')}={quote(str(value), safe='._:-')}"
@@ -234,6 +239,56 @@ def write_augmented_gff3(base_gff3, augmented_gff3, events):
             out.write("###\n")
 
 
+def write_bsj_only_gff3(bsj_only_gff3, events):
+    synthetic_lines = synthetic_bsj_gff3_lines(events)
+    bsj_only_gff3.parent.mkdir(parents=True, exist_ok=True)
+    with bsj_only_gff3.open("w") as out:
+        out.write("##gff-version 3\n")
+        out.write("# Synthetic BSJ-only annotations added by circRNA_smk.\n")
+        if synthetic_lines:
+            out.writelines(synthetic_lines)
+            out.write("###\n")
+
+
+def run_sashimi_plot(base_cmd, style_args, coordinate, plot_outdir, log_handle, env, event_key, plot_label):
+    plot_outdir.mkdir(parents=True, exist_ok=True)
+    cmd = base_cmd + style_args + [
+        "-c",
+        coordinate,
+        "-o",
+        str(plot_outdir.resolve()),
+    ]
+    log_handle.write(
+        f"[{event_key}][{plot_label}] command: "
+        f"{' '.join(shlex.quote(part) for part in cmd)}\n"
+    )
+    proc = subprocess.run(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=env,
+    )
+    if proc.stdout:
+        log_handle.write(proc.stdout)
+    if proc.stderr:
+        log_handle.write(proc.stderr)
+
+    pdfs = sorted(str(path.resolve()) for path in plot_outdir.glob("**/*.pdf"))
+    status = "ok" if proc.returncode == 0 and pdfs else "failed"
+    log_handle.write(
+        f"[{event_key}][{plot_label}] status={status} "
+        f"pdfs={len(pdfs)} returncode={proc.returncode}\n\n"
+    )
+    return {
+        "coordinate": coordinate,
+        "plot_dir": str(plot_outdir.resolve()),
+        "pdfs": pdfs,
+        "status": status,
+        "returncode": proc.returncode,
+    }
+
+
 def read_tabular_loose(path):
     lines = [
         line.rstrip("\n")
@@ -406,8 +461,14 @@ event_result = Path(snakemake.input.result)
 ciri3_annotation = Path(snakemake.input.ciri3)
 base_gff3 = Path(snakemake.input.gff3).resolve()
 outdir = Path(snakemake.params.outdir)
-plots_root = outdir / "plots"
+plots_root = snakemake_named_path(snakemake.output, "plots", outdir / "plots")
+bsj_only_plots_root = snakemake_named_path(
+    snakemake.output,
+    "bsj_only_plots",
+    outdir / "plots_bsj_only",
+)
 annotation_root = outdir / "annotations"
+bsj_only_annotation_root = annotation_root / "bsj_only"
 augmented_gff3 = (annotation_root / "bsj_augmented.gff3").resolve()
 manifest_path = Path(snakemake.output.manifest)
 done_path = Path(snakemake.output.done)
@@ -433,7 +494,9 @@ min_font_size = int(snakemake.params.min_font_size)
 if outdir.exists():
     shutil.rmtree(outdir)
 plots_root.mkdir(parents=True, exist_ok=True)
+bsj_only_plots_root.mkdir(parents=True, exist_ok=True)
 annotation_root.mkdir(parents=True, exist_ok=True)
+bsj_only_annotation_root.mkdir(parents=True, exist_ok=True)
 manifest_path.parent.mkdir(parents=True, exist_ok=True)
 done_path.parent.mkdir(parents=True, exist_ok=True)
 log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -463,9 +526,9 @@ for event in events:
         continue
     seen.add(event["circRNA_ID"])
     deduped.append(event)
+group_summary = parse_group_info(snakemake.input.group_info)
 events = deduped[:max_events] if max_events > 0 else deduped
 write_augmented_gff3(base_gff3, augmented_gff3, events)
-group_summary = parse_group_info(snakemake.input.group_info)
 
 base_cmd = [
     sys.executable,
@@ -488,8 +551,11 @@ base_cmd = [
     str(snakemake.params.min_counts),
 ]
 colors = list(snakemake.params.colors)
+plot_colors = []
 if colors:
-    base_cmd.extend(["--color", ",".join(colors)])
+    plot_colors = colors[: group_summary["groups"]]
+    if len(plot_colors) == group_summary["groups"]:
+        base_cmd.extend(["--color", ",".join(plot_colors)])
 extra_args = str(snakemake.params.extra_args or "")
 if extra_args:
     base_cmd.extend(shlex.split(extra_args))
@@ -508,8 +574,12 @@ with open(log_path, "w") as log_handle:
         f"when an effect column is available; flank={bsj_flank}\n\n"
         f"Base GFF3: {base_gff3}\n"
         f"Augmented GFF3: {augmented_gff3}\n"
+        f"Full plot directory: {plots_root.resolve()}\n"
+        f"BSJ-only plot directory: {bsj_only_plots_root.resolve()}\n"
+        f"BSJ-only GFF3 directory: {bsj_only_annotation_root.resolve()}\n"
         f"Auto scale: {auto_scale}; groups={group_summary['groups']}; "
-        f"samples={group_summary['samples']}\n\n"
+        f"samples={group_summary['samples']}\n"
+        f"Colors passed to rmats2sashimiplot: {','.join(plot_colors) or 'default'}\n\n"
     )
 
     for index, event in enumerate(events, start=1):
@@ -530,15 +600,18 @@ with open(log_path, "w") as log_handle:
             base_font_size,
             min_font_size,
         )
-        coordinate = (
-            f"{event['chrom']}:{event['strand']}:{region_start}:{region_end}:{augmented_gff3}"
-        )
         event_key = (
             f"{index:05d}_{safe_name(event['gene_id'] or 'gene')}_"
             f"{safe_name(event['circRNA_ID'])}"
         )
-        plot_outdir = plots_root / event_key
-        plot_outdir.mkdir(parents=True, exist_ok=True)
+        coordinate = (
+            f"{event['chrom']}:{event['strand']}:{region_start}:{region_end}:{augmented_gff3}"
+        )
+        bsj_only_gff3 = (bsj_only_annotation_root / f"{event_key}.gff3").resolve()
+        write_bsj_only_gff3(bsj_only_gff3, [event])
+        bsj_only_coordinate = (
+            f"{event['chrom']}:{event['strand']}:{region_start}:{region_end}:{bsj_only_gff3}"
+        )
 
         style_args = [
             "--font-size",
@@ -548,30 +621,35 @@ with open(log_path, "w") as log_handle:
         ]
         if fig_height > 0:
             style_args.extend(["--fig-height", format_float(fig_height)])
-        cmd = base_cmd + style_args + [
-            "-c",
+        full_plot = run_sashimi_plot(
+            base_cmd,
+            style_args,
             coordinate,
-            "-o",
-            str(plot_outdir.resolve()),
-        ]
-        log_handle.write(f"[{event_key}] command: {' '.join(shlex.quote(part) for part in cmd)}\n")
-        proc = subprocess.run(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            env=env,
+            plots_root / event_key,
+            log_handle,
+            env,
+            event_key,
+            "full",
         )
-        if proc.stdout:
-            log_handle.write(proc.stdout)
-        if proc.stderr:
-            log_handle.write(proc.stderr)
-
-        pdfs = sorted(str(path.resolve()) for path in plot_outdir.glob("**/*.pdf"))
-        status = "ok" if proc.returncode == 0 and pdfs else "failed"
-        if status == "failed" and fail_on_error:
+        bsj_only_plot = run_sashimi_plot(
+            base_cmd,
+            style_args,
+            bsj_only_coordinate,
+            bsj_only_plots_root / event_key,
+            log_handle,
+            env,
+            event_key,
+            "bsj_only",
+        )
+        failed_variants = [
+            label
+            for label, result in (("full", full_plot), ("bsj_only", bsj_only_plot))
+            if result["status"] == "failed"
+        ]
+        if failed_variants and fail_on_error:
             raise RuntimeError(
-                f"rmats2sashimiplot failed for {event_key}; see {log_path}"
+                f"rmats2sashimiplot failed for {event_key} "
+                f"({', '.join(failed_variants)}); see {log_path}"
             )
         manifest_rows.append(
             {
@@ -591,16 +669,24 @@ with open(log_path, "w") as log_handle:
                 "effect": "" if event["effect"] is None else event["effect"],
                 "coordinate": coordinate,
                 "annotation_gff3": str(augmented_gff3),
+                "bsj_only_coordinate": bsj_only_coordinate,
+                "bsj_only_annotation_gff3": str(bsj_only_gff3),
                 "fig_width": format_float(fig_width),
                 "fig_height": format_float(fig_height) if fig_height > 0 else "",
                 "font_size": font_size,
-                "plot_dir": str(plot_outdir.resolve()),
-                "pdfs": ",".join(pdfs),
-                "status": status,
-                "returncode": proc.returncode,
+                "plot_dir": full_plot["plot_dir"],
+                "pdfs": ",".join(full_plot["pdfs"]),
+                "status": full_plot["status"],
+                "returncode": full_plot["returncode"],
+                "bsj_only_plot_dir": bsj_only_plot["plot_dir"],
+                "bsj_only_pdfs": ",".join(bsj_only_plot["pdfs"]),
+                "bsj_only_status": bsj_only_plot["status"],
+                "bsj_only_returncode": bsj_only_plot["returncode"],
             }
         )
-        log_handle.write(f"[{event_key}] status={status} pdfs={len(pdfs)} returncode={proc.returncode}\n\n")
+
+plots_root.mkdir(parents=True, exist_ok=True)
+bsj_only_plots_root.mkdir(parents=True, exist_ok=True)
 
 fieldnames = [
     "method",
@@ -619,6 +705,8 @@ fieldnames = [
     "effect",
     "coordinate",
     "annotation_gff3",
+    "bsj_only_coordinate",
+    "bsj_only_annotation_gff3",
     "fig_width",
     "fig_height",
     "font_size",
@@ -626,6 +714,10 @@ fieldnames = [
     "pdfs",
     "status",
     "returncode",
+    "bsj_only_plot_dir",
+    "bsj_only_pdfs",
+    "bsj_only_status",
+    "bsj_only_returncode",
 ]
 with open(manifest_path, "w", newline="") as handle:
     writer = csv.DictWriter(handle, fieldnames=fieldnames, delimiter="\t")
@@ -636,4 +728,6 @@ done_path.write_text(
     f"events_selected\t{len(events)}\n"
     f"plots_ok\t{sum(1 for row in manifest_rows if row['status'] == 'ok')}\n"
     f"plots_failed\t{sum(1 for row in manifest_rows if row['status'] == 'failed')}\n"
+    f"bsj_only_plots_ok\t{sum(1 for row in manifest_rows if row['bsj_only_status'] == 'ok')}\n"
+    f"bsj_only_plots_failed\t{sum(1 for row in manifest_rows if row['bsj_only_status'] == 'failed')}\n"
 )

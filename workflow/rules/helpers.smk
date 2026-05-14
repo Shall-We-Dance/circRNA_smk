@@ -722,6 +722,11 @@ SASHIMI_TARGETS = (
         for method in BSJ_SASHIMI_METHODS
         for comparison in DEG_COMPARISON_NAMES
     ]
+    + [
+        f"{OUTDIR}/rmats/sashimi/bsj/{method}/{comparison}/plots_bsj_only"
+        for method in BSJ_SASHIMI_METHODS
+        for comparison in DEG_COMPARISON_NAMES
+    ]
     if SASHIMI_ENABLED
     else []
 )
