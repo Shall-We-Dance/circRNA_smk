@@ -46,6 +46,18 @@ def format_float(value):
     return f"{float(value):.2f}".rstrip("0").rstrip(".")
 
 
+def format_count(value):
+    value = float(value)
+    rounded = round(value)
+    if abs(value - rounded) < 1e-6:
+        return str(int(rounded))
+    return f"{value:.2f}".rstrip("0").rstrip(".")
+
+
+def format_ratio(value):
+    return f"{float(value):.3f}".rstrip("0").rstrip(".")
+
+
 def snakemake_named_path(collection, name, fallback):
     value = getattr(collection, name, None)
     return Path(value) if value not in (None, "") else fallback
@@ -78,6 +90,38 @@ def parse_group_info(path):
         "groups": max(group_count, 2),
         "samples": max(len(sample_indices), 2),
         "max_label_len": max_label_len,
+    }
+
+
+def read_sashimi_samples(path):
+    path = Path(path)
+    with path.open() as handle:
+        reader = csv.DictReader(handle, delimiter="\t")
+        if reader.fieldnames is None:
+            raise ValueError(f"Empty sashimi samples table: {path}")
+        if "sample" not in reader.fieldnames or "group" not in reader.fieldnames:
+            raise ValueError(f"Sashimi samples table must contain sample and group columns: {path}")
+
+        groups = []
+        group_to_samples = {}
+        samples = []
+        for row in reader:
+            sample = str(row.get("sample", "")).strip()
+            group = str(row.get("group", "")).strip()
+            if not sample or not group:
+                continue
+            if group not in group_to_samples:
+                group_to_samples[group] = []
+                groups.append(group)
+            group_to_samples[group].append(sample)
+            samples.append(sample)
+
+    if not groups:
+        raise ValueError(f"No sample/group records in sashimi samples table: {path}")
+    return {
+        "groups": groups,
+        "group_to_samples": group_to_samples,
+        "samples": samples,
     }
 
 
@@ -135,6 +179,29 @@ def scaled_plot_style(
     return round(fig_width, 2), round(fig_height, 2), font_size
 
 
+def bsj_signal_summary(event):
+    if "bsj_total_bsj" not in event:
+        return ""
+    return (
+        f"CIRI3_BSJ={format_count(event['bsj_total_bsj'])}, "
+        f"CIRI3_FSJ={format_count(event['bsj_total_fsj'])}, "
+        f"JR={format_ratio(event['bsj_junction_ratio'])}, "
+        f"matrix_row={event['bsj_matrix_row_found']}"
+    )
+
+
+def bsj_display_name(event, base_name):
+    summary = bsj_signal_summary(event)
+    if not summary:
+        return base_name
+    short_summary = (
+        f"BSJ-{format_count(event['bsj_total_bsj'])}_"
+        f"FSJ-{format_count(event['bsj_total_fsj'])}_"
+        f"JR-{format_ratio(event['bsj_junction_ratio'])}"
+    )
+    return f"{base_name}_{short_summary}"
+
+
 def synthetic_bsj_gff3_lines(events):
     lines = []
     for index, event in enumerate(events, start=1):
@@ -146,6 +213,13 @@ def synthetic_bsj_gff3_lines(events):
         right_start = max(start, end - anchor + 1)
         feature_id = f"bsj-{index:05d}-{safe_name(event['circRNA_ID'])}"
         name = event["gene_id"] or event["circRNA_ID"]
+        signal_note = bsj_signal_summary(event)
+        annotation_note = "Synthetic BSJ annotation from circRNA DEG result"
+        if signal_note:
+            annotation_note = f"{annotation_note}; {signal_note}"
+        span_note = "Back-splice junction span"
+        if signal_note:
+            span_note = f"{span_note}; {signal_note}"
         common = [
             str(event["chrom"]),
             "circRNA_smk",
@@ -164,9 +238,9 @@ def synthetic_bsj_gff3_lines(events):
                 end,
                 {
                     "ID": f"{feature_id}.gene",
-                    "Name": name,
+                    "Name": bsj_display_name(event, name),
                     "Alias": event["circRNA_ID"],
-                    "Note": "Synthetic BSJ annotation from circRNA DEG result",
+                    "Note": annotation_note,
                 },
             ),
             (
@@ -176,9 +250,9 @@ def synthetic_bsj_gff3_lines(events):
                 {
                     "ID": f"{feature_id}.tx",
                     "Parent": f"{feature_id}.gene",
-                    "Name": event["circRNA_ID"],
+                    "Name": bsj_display_name(event, event["circRNA_ID"]),
                     "Alias": name,
-                    "Note": "Back-splice junction span",
+                    "Note": span_note,
                 },
             ),
             (
@@ -286,6 +360,136 @@ def run_sashimi_plot(base_cmd, style_args, coordinate, plot_outdir, log_handle, 
         "pdfs": pdfs,
         "status": status,
         "returncode": proc.returncode,
+    }
+
+
+def matrix_locus_keys(chrom, start, end):
+    chrom = str(chrom)
+    keys = [(chrom, int(start), int(end))]
+    if chrom.startswith("chr") and len(chrom) > 3:
+        keys.append((chrom[3:], int(start), int(end)))
+    else:
+        keys.append((f"chr{chrom}", int(start), int(end)))
+    return keys
+
+
+def read_ciri3_matrix(path):
+    path = Path(path)
+    rows = {}
+    by_locus = {}
+    samples = []
+
+    with path.open() as handle:
+        reader = csv.reader(handle, delimiter="\t")
+        header = next(reader, None)
+        if header is None or len(header) < 2:
+            return {"path": path, "samples": samples, "rows": rows, "by_locus": by_locus}
+        samples = [sample.strip() for sample in header[1:]]
+
+        for row in reader:
+            if not row:
+                continue
+            circ_id = row[0].strip()
+            if not circ_id:
+                continue
+            values = {}
+            for sample, raw in zip(samples, row[1:]):
+                parsed = parse_float(raw)
+                values[sample] = 0.0 if parsed is None else parsed
+            for sample in samples[len(row) - 1 :]:
+                values.setdefault(sample, 0.0)
+
+            aliases = [circ_id]
+            if ";" in circ_id:
+                aliases.append(circ_id.split(";", 1)[0])
+            for alias in aliases:
+                rows.setdefault(alias, values)
+                parsed = parse_bsj_id(alias)
+                if parsed is None:
+                    continue
+                chrom, start, end = parsed
+                for key in matrix_locus_keys(chrom, start, end):
+                    by_locus.setdefault(key, values)
+
+    return {"path": path, "samples": samples, "rows": rows, "by_locus": by_locus}
+
+
+def lookup_ciri3_matrix_values(matrix, event):
+    circ_id = str(event["circRNA_ID"])
+    candidates = [
+        circ_id,
+        f"{event['chrom']}:{event['start']}|{event['end']}",
+        f"{event['chrom']}:{event['start']}-{event['end']}",
+        f"{event['chrom']}:{event['start']}..{event['end']}",
+    ]
+    for candidate in candidates:
+        if candidate in matrix["rows"]:
+            return matrix["rows"][candidate]
+
+    for key in matrix_locus_keys(event["chrom"], event["start"], event["end"]):
+        if key in matrix["by_locus"]:
+            return matrix["by_locus"][key]
+    return {}
+
+
+def junction_ratio(bsj, fsj):
+    denom = 2.0 * bsj + fsj
+    if denom <= 0:
+        return 0.0
+    return (2.0 * bsj) / denom
+
+
+def collect_ciri3_bsj_signal(event, bsj_matrix, fsj_matrix, sample_info):
+    bsj_values = lookup_ciri3_matrix_values(bsj_matrix, event)
+    fsj_values = lookup_ciri3_matrix_values(fsj_matrix, event)
+    group_rows = []
+    sample_rows = []
+    total_bsj = 0.0
+    total_fsj = 0.0
+
+    for group in sample_info["groups"]:
+        group_samples = sample_info["group_to_samples"][group]
+        group_bsj = 0.0
+        group_fsj = 0.0
+        positive_bsj = 0
+        for sample in group_samples:
+            bsj = float(bsj_values.get(sample, 0.0))
+            fsj = float(fsj_values.get(sample, 0.0))
+            group_bsj += bsj
+            group_fsj += fsj
+            if bsj > 0:
+                positive_bsj += 1
+            sample_rows.append(
+                {
+                    "group": group,
+                    "sample": sample,
+                    "bsj_count": bsj,
+                    "fsj_count": fsj,
+                    "junction_ratio": junction_ratio(bsj, fsj),
+                }
+            )
+
+        total_bsj += group_bsj
+        total_fsj += group_fsj
+        group_rows.append(
+            {
+                "group": group,
+                "samples": list(group_samples),
+                "n_samples": len(group_samples),
+                "n_bsj_positive": positive_bsj,
+                "bsj_count": group_bsj,
+                "fsj_count": group_fsj,
+                "junction_ratio": junction_ratio(group_bsj, group_fsj),
+            }
+        )
+
+    return {
+        "group_rows": group_rows,
+        "sample_rows": sample_rows,
+        "total_bsj": total_bsj,
+        "total_fsj": total_fsj,
+        "junction_ratio": junction_ratio(total_bsj, total_fsj),
+        "matrix_row_found": bool(bsj_values or fsj_values),
     }
 
 
@@ -459,6 +663,9 @@ def row_to_event(row, method, strand_map, gene_map, padj_cutoff, lfc_cutoff):
 
 event_result = Path(snakemake.input.result)
 ciri3_annotation = Path(snakemake.input.ciri3)
+bsj_matrix_path = Path(snakemake.input.bsj_matrix)
+fsj_matrix_path = Path(snakemake.input.fsj_matrix)
+samples_path = Path(snakemake.input.samples)
 base_gff3 = Path(snakemake.input.gff3).resolve()
 outdir = Path(snakemake.params.outdir)
 plots_root = snakemake_named_path(snakemake.output, "plots", outdir / "plots")
@@ -503,6 +710,9 @@ log_path.parent.mkdir(parents=True, exist_ok=True)
 
 _, rows = read_tabular_loose(event_result)
 strand_map, gene_map = read_ciri3_annotation(ciri3_annotation)
+sample_info = read_sashimi_samples(samples_path)
+ciri3_bsj_matrix = read_ciri3_matrix(bsj_matrix_path)
+ciri3_fsj_matrix = read_ciri3_matrix(fsj_matrix_path)
 
 events = []
 for row in rows:
@@ -528,6 +738,18 @@ for event in events:
     deduped.append(event)
 group_summary = parse_group_info(snakemake.input.group_info)
 events = deduped[:max_events] if max_events > 0 else deduped
+for event in events:
+    signal = collect_ciri3_bsj_signal(
+        event,
+        ciri3_bsj_matrix,
+        ciri3_fsj_matrix,
+        sample_info,
+    )
+    event["bsj_signal"] = signal
+    event["bsj_total_bsj"] = signal["total_bsj"]
+    event["bsj_total_fsj"] = signal["total_fsj"]
+    event["bsj_junction_ratio"] = signal["junction_ratio"]
+    event["bsj_matrix_row_found"] = "yes" if signal["matrix_row_found"] else "no"
 write_augmented_gff3(base_gff3, augmented_gff3, events)
 
 base_cmd = [
@@ -577,6 +799,9 @@ with open(log_path, "w") as log_handle:
         f"Full plot directory: {plots_root.resolve()}\n"
         f"BSJ-only plot directory: {bsj_only_plots_root.resolve()}\n"
         f"BSJ-only GFF3 directory: {bsj_only_annotation_root.resolve()}\n"
+        f"BSJ labels: CIRI3 BSJ_Matrix / FSJ_Matrix fields embedded in synthetic GFF3\n"
+        f"CIRI3 BSJ matrix: {bsj_matrix_path.resolve()}\n"
+        f"CIRI3 FSJ matrix: {fsj_matrix_path.resolve()}\n"
         f"Auto scale: {auto_scale}; groups={group_summary['groups']}; "
         f"samples={group_summary['samples']}\n"
         f"Colors passed to rmats2sashimiplot: {','.join(plot_colors) or 'default'}\n\n"
@@ -631,6 +856,7 @@ with open(log_path, "w") as log_handle:
             event_key,
             "full",
         )
+        bsj_signal = event["bsj_signal"]
         bsj_only_plot = run_sashimi_plot(
             base_cmd,
             style_args,
@@ -667,6 +893,10 @@ with open(log_path, "w") as log_handle:
                 "pvalue": "" if event["pvalue"] is None else event["pvalue"],
                 "padj": "" if event["padj"] is None else event["padj"],
                 "effect": "" if event["effect"] is None else event["effect"],
+                "bsj_total_bsj": format_count(bsj_signal["total_bsj"]),
+                "bsj_total_fsj": format_count(bsj_signal["total_fsj"]),
+                "bsj_junction_ratio": format_ratio(bsj_signal["junction_ratio"]),
+                "bsj_matrix_row_found": event["bsj_matrix_row_found"],
                 "coordinate": coordinate,
                 "annotation_gff3": str(augmented_gff3),
                 "bsj_only_coordinate": bsj_only_coordinate,
@@ -682,6 +912,14 @@ with open(log_path, "w") as log_handle:
                 "bsj_only_pdfs": ",".join(bsj_only_plot["pdfs"]),
                 "bsj_only_status": bsj_only_plot["status"],
                 "bsj_only_returncode": bsj_only_plot["returncode"],
+                "bsj_only_source": "rmats2sashimiplot_MISO",
+                "bsj_only_bsj_matrix": str(bsj_matrix_path.resolve()),
+                "bsj_only_fsj_matrix": str(fsj_matrix_path.resolve()),
+                "bsj_only_source_data": "",
+                "bsj_only_total_bsj": format_count(bsj_signal["total_bsj"]),
+                "bsj_only_total_fsj": format_count(bsj_signal["total_fsj"]),
+                "bsj_only_junction_ratio": format_ratio(bsj_signal["junction_ratio"]),
+                "bsj_only_matrix_row_found": event["bsj_matrix_row_found"],
             }
         )
 
@@ -703,6 +941,10 @@ fieldnames = [
     "pvalue",
     "padj",
     "effect",
+    "bsj_total_bsj",
+    "bsj_total_fsj",
+    "bsj_junction_ratio",
+    "bsj_matrix_row_found",
     "coordinate",
     "annotation_gff3",
     "bsj_only_coordinate",
@@ -718,6 +960,14 @@ fieldnames = [
     "bsj_only_pdfs",
     "bsj_only_status",
     "bsj_only_returncode",
+    "bsj_only_source",
+    "bsj_only_bsj_matrix",
+    "bsj_only_fsj_matrix",
+    "bsj_only_source_data",
+    "bsj_only_total_bsj",
+    "bsj_only_total_fsj",
+    "bsj_only_junction_ratio",
+    "bsj_only_matrix_row_found",
 ]
 with open(manifest_path, "w", newline="") as handle:
     writer = csv.DictWriter(handle, fieldnames=fieldnames, delimiter="\t")

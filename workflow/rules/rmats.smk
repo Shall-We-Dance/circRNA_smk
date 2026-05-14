@@ -393,10 +393,13 @@ rule rmats2sashimi_plot_bsj_events:
         ready=RMATS2SASHIMI_READY,
         result=bsj_sashimi_result_path,
         ciri3=f"{OUTDIR}/ciri3/all_samples.ciri3",
+        bsj_matrix=f"{OUTDIR}/ciri3/all_samples.ciri3.BSJ_Matrix",
+        fsj_matrix=f"{OUTDIR}/ciri3/all_samples.ciri3.FSJ_Matrix",
         gff3=SASHIMI_GFF3,
         b1=f"{OUTDIR}/rmats/sashimi/bsj/inputs/b1.txt",
         b2=f"{OUTDIR}/rmats/sashimi/bsj/inputs/b2.txt",
         group_info=f"{OUTDIR}/rmats/sashimi/bsj/inputs/grouping.gf",
+        samples=f"{OUTDIR}/rmats/sashimi/bsj/inputs/samples.tsv",
         bams=sashimi_all_group_bams,
         bais=sashimi_all_group_bais
     output:
