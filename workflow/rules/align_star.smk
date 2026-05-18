@@ -47,6 +47,7 @@ rule star_align_ciri3:
           --outFilterMismatchNmax 2 \
           --chimSegmentMin 15 \
           --chimScoreMin 15 \
+          --chimScoreSeparation 10 \
           --chimJunctionOverhangMin 15 \
           > "{log}" 2>&1
 

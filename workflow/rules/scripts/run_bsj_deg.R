@@ -14,10 +14,21 @@ on.exit({
   close(log_con)
 }, add = TRUE)
 
-message("Starting BSJ DEG analysis.")
+source_name <- "CIRI3"
+if ("source_name" %in% names(snakemake@params)) {
+  source_name <- as.character(snakemake@params[["source_name"]])
+  if (is.na(source_name) || source_name == "") {
+    source_name <- "CIRI3"
+  }
+}
+
+message("Starting ", source_name, " BSJ DEG analysis.")
 
 counts_path <- snakemake@input[["bsj"]]
-ciri3_path <- snakemake@input[["ciri3"]]
+annotation_path <- snakemake@input[["annotation"]]
+if (is.null(annotation_path) && "ciri3" %in% names(snakemake@input)) {
+  annotation_path <- snakemake@input[["ciri3"]]
+}
 groups <- snakemake@params[["groups"]]
 comparisons <- snakemake@params[["comparisons"]]
 padj_cutoff <- as.numeric(snakemake@params[["padj_cutoff"]])
@@ -79,7 +90,7 @@ parse_circrna_id <- function(ids) {
 }
 bsj_annot <- parse_circrna_id(rownames(counts))
 
-read_ciri3_annotation <- function(path) {
+read_bsj_annotation <- function(path) {
   annot <- tryCatch(
     read.table(
       path,
@@ -90,7 +101,7 @@ read_ciri3_annotation <- function(path) {
       quote = ""
     ),
     error = function(e) {
-      warning("Unable to parse CIRI3 table for annotation: ", conditionMessage(e))
+      warning("Unable to parse ", source_name, " table for annotation: ", conditionMessage(e))
       NULL
     }
   )
@@ -134,7 +145,7 @@ read_ciri3_annotation <- function(path) {
   )
   out
 }
-ciri3_annot <- read_ciri3_annotation(ciri3_path)
+source_annot <- read_bsj_annotation(annotation_path)
 
 sample_to_group <- unlist(
   lapply(names(groups), function(group_name) {
@@ -321,7 +332,7 @@ plot_heatmap <- function(vst_values, sig_ids, feature_labels, out_file, title, c
 res_all <- results(dds)
 res_all_df <- data.frame(circRNA = rownames(res_all), as.data.frame(res_all), check.names = FALSE)
 res_all_df <- merge(bsj_annot, res_all_df, by = "circRNA", all.y = TRUE, sort = FALSE)
-res_all_df <- merge(res_all_df, ciri3_annot, by = "circRNA", all.x = TRUE, sort = FALSE)
+res_all_df <- merge(res_all_df, source_annot, by = "circRNA", all.x = TRUE, sort = FALSE)
 res_all_df$regulation <- ifelse(
   !is.na(res_all_df$padj) & res_all_df$padj < padj_cutoff & res_all_df$log2FoldChange >= lfc_cutoff,
   "Up",
@@ -383,7 +394,7 @@ for (pair_name in names(comparisons)) {
   res <- results(dds, contrast = c("group", case_group, control_group))
   res_df <- data.frame(circRNA = rownames(res), as.data.frame(res), check.names = FALSE)
   res_df <- merge(bsj_annot, res_df, by = "circRNA", all.y = TRUE, sort = FALSE)
-  res_df <- merge(res_df, ciri3_annot, by = "circRNA", all.x = TRUE, sort = FALSE)
+  res_df <- merge(res_df, source_annot, by = "circRNA", all.x = TRUE, sort = FALSE)
   res_df$regulation <- ifelse(
     !is.na(res_df$padj) & res_df$padj < padj_cutoff & res_df$log2FoldChange >= lfc_cutoff,
     paste0("Up_in_", case_group),
@@ -396,14 +407,14 @@ for (pair_name in names(comparisons)) {
   write.table(res_df, file = pair_results[[pair_name]], sep = "\t", quote = FALSE, row.names = FALSE)
   plot_volcano(
     res_df,
-    paste0("BSJ DEG: ", case_group, " vs ", control_group),
+    paste0(source_name, " BSJ DEG: ", case_group, " vs ", control_group),
     pair_volcano[[pair_name]],
     alpha = padj_cutoff,
     lfc_threshold = lfc_cutoff
   )
   plot_volcano_labeled(
     res_df,
-    paste0("BSJ DEG (labeled): ", case_group, " vs ", control_group),
+    paste0(source_name, " BSJ DEG (labeled): ", case_group, " vs ", control_group),
     pair_volcano_labeled[[pair_name]],
     alpha = padj_cutoff,
     lfc_threshold = lfc_cutoff
@@ -430,7 +441,7 @@ for (pair_name in names(comparisons)) {
     sig$circRNA,
     feature_labels,
     pair_heatmap[[pair_name]],
-    paste0("Top significant BSJs: ", case_group, " vs ", control_group),
+    paste0("Top significant ", source_name, " BSJs: ", case_group, " vs ", control_group),
     setNames(as.character(pair_design$group), pair_design$sample)
   )
 
@@ -466,7 +477,7 @@ if (nrow(pairwise_sig_rank) > 0) {
     min_padj$circRNA,
     feature_label_all,
     snakemake@output[["all_heatmap"]],
-    "Top significant BSJs (union of pairwise DEGs)",
+    paste0("Top significant ", source_name, " BSJs (union of pairwise DEGs)"),
     setNames(as.character(design$group), design$sample)
   )
 } else {
@@ -475,9 +486,9 @@ if (nrow(pairwise_sig_rank) > 0) {
     character(0),
     feature_label_all,
     snakemake@output[["all_heatmap"]],
-    "Top significant BSJs (union of pairwise DEGs)",
+    paste0("Top significant ", source_name, " BSJs (union of pairwise DEGs)"),
     setNames(as.character(design$group), design$sample)
   )
 }
 
-message("BSJ DEG analysis finished.")
+message(source_name, " BSJ DEG analysis finished.")

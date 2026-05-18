@@ -1,0 +1,13 @@
+name: dcc
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - dcc=0.5.0
+  - circtools
+  - samtools
+  - r-base
+  - r-aod
+  - r-plyr
+  - r-ggplot2
+  - python>=3.9

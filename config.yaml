@@ -9,6 +9,7 @@ threads:
   faidx: 2                # samtools faidx (reference index)
   homer: 8                # findMotifs.pl -p
   splicing_stats: 2       # per-sample and merged splicing-site summaries
+  dcc: 8                  # DCC -T
   rmats: 8                # rMATS-turbo --nthread
   sashimi: 2              # Snakemake scheduling threads for rmats2sashimiplot jobs
 
@@ -95,8 +96,41 @@ ciri3:
   Ma: 1
   W: 1
 
+dcc:
+  # Run DCC in parallel with CIRI3 from the same STAR Chimeric.out.junction,
+  # coordinate-sorted BAM, and SJ.out.tab outputs.
+  enabled: true
+  # DCC defaults to stranded mode; this example follows rmats_turbo.lib_type:
+  # false for fr-unstranded data, true for stranded data.
+  stranded: false
+  secondstrand: false
+  # Optional RepeatMasker/SimpleRepeats-style GTF used by DCC -R. Leave empty
+  # to run DCC's count/gene filters without repeat-region masking.
+  repeat_gtf: ""
+  filter: true
+  filter_chrM: true
+  filter_by_gene: true
+  run_gene_counts: true
+  run_deseq2: true
+  run_circtest: true
+  run_sashimi: true
+  run_motif: true
+  min_count: 2
+  min_replicates: 2
+  # CircTest filters. CircTest uses DCC CircRNACount plus LinearCount and
+  # tests circular-to-host-gene relative abundance changes.
+  circtest_filter_sample: 2
+  circtest_filter_count: 5
+  circtest_percentage: 0.01
+  circtest_max_plots: 50
+  min_length: 30
+  max_length: 1000000
+  end_tolerance: 5
+  extra_args: ""
+
 motif:
-  # run BSJ-centered motif analysis with HOMER based on all_samples.ciri3.BSJ_Matrix
+  # run BSJ-centered motif analysis with HOMER based on CIRI3 and, when enabled,
+  # DCC per-sample BSJ matrices
   enabled: true
   # sequence window size on each side of BSJ donor/acceptor site
   flank: 30
@@ -162,10 +196,10 @@ rmats_turbo:
   count_types: ["JC", "JCEC"]
 
 sashimi:
-  # plot significant BSJ sites from DESeq2 and enabled CIRI3 DEG methods.
+  # plot significant BSJ sites from DESeq2 and enabled CIRI3/DCC DEG methods.
   # Each method/comparison gets its own directory, and every selected BSJ is
   # plotted across all deg.groups with rmats2sashimiplot coordinate mode.
-  # CIRI3 BSJ counts are converted into event-level pseudo-BAM junction reads
+  # Caller BSJ counts are converted into event-level pseudo-BAM junction reads
   # so rmats2sashimiplot/MISO can draw BSJ arcs in plots/ and plots_bsj_only/.
   enabled: true
   repo_url: "https://github.com/Xinglab/rmats2sashimiplot.git"

@@ -22,6 +22,12 @@ CIRI3_RATIO_RELATIVE_DEG_SCRIPT = os.path.join(
     "scripts",
     "compute_ciri3_ratio_relative_deg.R",
 )
+DCC_NORMALIZE_SCRIPT = os.path.join(
+    workflow.basedir,
+    "rules",
+    "scripts",
+    "normalize_dcc_outputs.py",
+)
 
 
 def _sanitize_path_component(value):
@@ -164,6 +170,110 @@ RMATS_PAIRED_STATS = _get_bool(rmats_cfg, "paired_stats", False)
 RMATS_STATOFF = _get_bool(rmats_cfg, "statoff", False)
 RMATS_INDIVIDUAL_COUNTS = _get_bool(rmats_cfg, "individual_counts", False)
 RMATS_EXTRA_ARGS = str(rmats_cfg.get("extra_args", "") or "")
+
+dcc_cfg = config.get("dcc", {}) or {}
+if not isinstance(dcc_cfg, dict):
+    raise ValueError("Top-level dcc config must be a mapping.")
+
+DCC_ENABLED = _get_bool(dcc_cfg, "enabled", False)
+DCC_OUTDIR = dcc_cfg.get("outdir", f"{OUTDIR}/dcc")
+DCC_RAW_OUTDIR = f"{DCC_OUTDIR}/raw"
+DCC_RUN_DESEQ2 = DCC_ENABLED and _get_bool(dcc_cfg, "run_deseq2", True)
+DCC_RUN_CIRCTEST = DCC_ENABLED and _get_bool(dcc_cfg, "run_circtest", True)
+DCC_RUN_MOTIF = DCC_ENABLED and _get_bool(dcc_cfg, "run_motif", True)
+DCC_RUN_SASHIMI = DCC_ENABLED and _get_bool(dcc_cfg, "run_sashimi", True)
+DCC_DEG_OUTDIR = dcc_cfg.get("deg_outdir", f"{OUTDIR}/deg/dcc_deseq2")
+DCC_CIRCTEST_OUTDIR = dcc_cfg.get("circtest_outdir", f"{OUTDIR}/deg/dcc_circtest")
+DCC_STRANDED = _get_bool(
+    dcc_cfg,
+    "stranded",
+    default=(RMATS_LIB_TYPE != "fr-unstranded"),
+)
+DCC_SECONDSTRAND = _get_bool(
+    dcc_cfg,
+    "secondstrand",
+    default=(RMATS_LIB_TYPE == "fr-secondstrand"),
+)
+DCC_FILTER = _get_bool(dcc_cfg, "filter", True)
+DCC_FILTER_CHRM = _get_bool(dcc_cfg, "filter_chrM", True)
+DCC_FILTER_BY_GENE = _get_bool(dcc_cfg, "filter_by_gene", True)
+DCC_KEEP_TEMP = _get_bool(dcc_cfg, "keep_temp", False)
+DCC_RUN_GENE_COUNTS = _get_bool(dcc_cfg, "run_gene_counts", True)
+DCC_REPEAT_GTF = str(dcc_cfg.get("repeat_gtf", "") or "")
+DCC_EXTRA_ARGS = str(dcc_cfg.get("extra_args", "") or "")
+DCC_END_TOL = _numeric_config(
+    dcc_cfg,
+    "end_tolerance",
+    5,
+    int,
+    "dcc.end_tolerance",
+    minimum=0,
+    maximum=9,
+)
+DCC_MIN_LENGTH = _numeric_config(
+    dcc_cfg,
+    "min_length",
+    30,
+    int,
+    "dcc.min_length",
+    minimum=1,
+)
+DCC_MAX_LENGTH = _numeric_config(
+    dcc_cfg,
+    "max_length",
+    1000000,
+    int,
+    "dcc.max_length",
+    minimum=DCC_MIN_LENGTH,
+)
+DCC_MIN_COUNT = _numeric_config(
+    dcc_cfg,
+    "min_count",
+    2,
+    int,
+    "dcc.min_count",
+    minimum=0,
+)
+DCC_MIN_REPLICATES = _numeric_config(
+    dcc_cfg,
+    "min_replicates",
+    2,
+    int,
+    "dcc.min_replicates",
+    minimum=1,
+)
+DCC_CIRCTEST_FILTER_SAMPLE = _numeric_config(
+    dcc_cfg,
+    "circtest_filter_sample",
+    DCC_MIN_REPLICATES,
+    int,
+    "dcc.circtest_filter_sample",
+    minimum=1,
+)
+DCC_CIRCTEST_FILTER_COUNT = _numeric_config(
+    dcc_cfg,
+    "circtest_filter_count",
+    5,
+    int,
+    "dcc.circtest_filter_count",
+    minimum=0,
+)
+DCC_CIRCTEST_PERCENTAGE = _numeric_config(
+    dcc_cfg,
+    "circtest_percentage",
+    0.01,
+    float,
+    "dcc.circtest_percentage",
+    minimum=0,
+)
+DCC_CIRCTEST_MAX_PLOTS = _numeric_config(
+    dcc_cfg,
+    "circtest_max_plots",
+    50,
+    int,
+    "dcc.circtest_max_plots",
+    minimum=0,
+)
 
 sashimi_cfg = config.get("sashimi", {}) or {}
 if not isinstance(sashimi_cfg, dict):
@@ -482,6 +592,8 @@ CIRI3_DE_RUN_BSJ = _get_bool(deg_cfg, "run_de_bsj", False)
 CIRI3_DE_RUN_RATIO = _get_bool(deg_cfg, "run_de_ratio", False)
 CIRI3_DE_RUN_RELATIVE = _get_bool(deg_cfg, "run_de_relative", False)
 CIRI3_DE_ENABLED = CIRI3_DE_RUN_BSJ or CIRI3_DE_RUN_RATIO or CIRI3_DE_RUN_RELATIVE
+DCC_DEG_RUN_DESEQ2 = DCC_RUN_DESEQ2
+DCC_DEG_RUN_CIRCTEST = DCC_RUN_CIRCTEST
 
 DEG_GROUPS = deg_cfg.get("groups", {}) or {}
 if DEG_GROUPS and not isinstance(DEG_GROUPS, dict):
@@ -510,15 +622,35 @@ CIRI3_DE_USE_FEATURECOUNTS = _get_bool(
 )
 
 RMATS_WORKFLOW_ACTIVE = RMATS_ENABLED or SASHIMI_ENABLED
-DEG_ACTIVE = DEG_RUN_DESEQ2 or CIRI3_DE_ENABLED or RMATS_WORKFLOW_ACTIVE
+DEG_ACTIVE = (
+    DEG_RUN_DESEQ2
+    or CIRI3_DE_ENABLED
+    or DCC_DEG_RUN_DESEQ2
+    or DCC_DEG_RUN_CIRCTEST
+    or RMATS_WORKFLOW_ACTIVE
+)
+DCC_DEG_FOR_SASHIMI_ENABLED = DCC_RUN_SASHIMI and (
+    DCC_DEG_RUN_DESEQ2 or DCC_DEG_RUN_CIRCTEST
+)
 
-if SASHIMI_ENABLED and not (DEG_RUN_DESEQ2 or CIRI3_DE_ENABLED):
+if SASHIMI_ENABLED and not (
+    DEG_RUN_DESEQ2
+    or CIRI3_DE_ENABLED
+    or DCC_DEG_FOR_SASHIMI_ENABLED
+):
     raise ValueError(
         "sashimi.enabled requires at least one BSJ differential source: "
-        "deg.run_deseq2, deg.run_de_bsj, deg.run_de_ratio, or deg.run_de_relative."
+        "deg.run_deseq2, deg.run_de_bsj, deg.run_de_ratio, deg.run_de_relative, "
+        "dcc.run_deseq2, or dcc.run_circtest."
     )
 
 if DEG_ACTIVE:
+    if DCC_DEG_RUN_CIRCTEST and not DCC_RUN_GENE_COUNTS:
+        raise ValueError(
+            "dcc.run_circtest requires dcc.run_gene_counts: true because CircTest "
+            "uses DCC LinearCount host-gene counts together with CircRNACount."
+        )
+
     if len(DEG_GROUP_NAMES) < 2:
         raise ValueError("DEG/CIRI3/rMATS analysis is enabled, but fewer than 2 deg.groups are configured.")
 
@@ -548,6 +680,7 @@ if DEG_ACTIVE:
             "Each sample can only belong to one DEG group. Duplicated samples: "
             + ", ".join(sorted(duplicated))
         )
+    DEG_SAMPLE_TO_GROUP = sample_to_group
 
     DEG_SELECTED_SAMPLES = [
         sample
@@ -566,6 +699,7 @@ if DEG_ACTIVE:
             "no alternate gene-expression source is currently implemented."
         )
 else:
+    DEG_SAMPLE_TO_GROUP = {}
     DEG_SELECTED_SAMPLES = []
 
 explicit_deg_comparisons = deg_cfg.get("comparisons")
@@ -580,9 +714,10 @@ else:
 
 DEG_COMPARISON_NAMES = list(DEG_COMPARISONS.keys())
 CIRI3_DE_COMPARISON_NAMES = DEG_COMPARISON_NAMES
-CIRI3_DE_COMPARISON_REGEX = "|".join(
-    re.escape(name) for name in CIRI3_DE_COMPARISON_NAMES
-) or r"(?!)"
+DCC_DEG_COMPARISON_NAMES = DEG_COMPARISON_NAMES if DCC_DEG_RUN_DESEQ2 else []
+DCC_CIRCTEST_COMPARISON_NAMES = DEG_COMPARISON_NAMES if DCC_DEG_RUN_CIRCTEST else []
+DEG_COMPARISON_REGEX = "|".join(re.escape(name) for name in DEG_COMPARISON_NAMES) or r"(?!)"
+CIRI3_DE_COMPARISON_REGEX = DEG_COMPARISON_REGEX
 RMATS_GROUP_NAMES = DEG_GROUP_NAMES if RMATS_ENABLED else []
 RMATS_GROUP_REGEX = "|".join(
     re.escape(name) for name in RMATS_GROUP_NAMES
@@ -597,6 +732,8 @@ BSJ_SASHIMI_METHODS = (
     + (["de_bsj"] if CIRI3_DE_RUN_BSJ else [])
     + (["de_ratio"] if CIRI3_DE_RUN_RATIO else [])
     + (["de_relative"] if CIRI3_DE_RUN_RELATIVE else [])
+    + (["dcc_deseq2"] if DCC_DEG_FOR_SASHIMI_ENABLED and DCC_DEG_RUN_DESEQ2 else [])
+    + (["dcc_circtest"] if DCC_DEG_FOR_SASHIMI_ENABLED and DCC_DEG_RUN_CIRCTEST else [])
 )
 BSJ_SASHIMI_METHOD_REGEX = "|".join(
     re.escape(method) for method in BSJ_SASHIMI_METHODS
@@ -696,9 +833,37 @@ def sashimi_label_b2(wildcards):
 def bsj_sashimi_result_path(wildcards):
     if wildcards.method == "deseq2":
         return f"{OUTDIR}/deg/deseq2/pairwise/{wildcards.comparison}/deseq2_results.tsv"
+    if wildcards.method == "dcc_deseq2":
+        return f"{DCC_DEG_OUTDIR}/pairwise/{wildcards.comparison}/deseq2_results.tsv"
+    if wildcards.method == "dcc_circtest":
+        return f"{DCC_CIRCTEST_OUTDIR}/pairwise/{wildcards.comparison}/circtest_results.tsv"
     if wildcards.method in {"de_bsj", "de_ratio", "de_relative"}:
         return f"{CIRI3_DE_OUTDIR}/{wildcards.comparison}/{wildcards.method}/result.txt"
     raise ValueError(f"Unsupported BSJ sashimi method: {wildcards.method}")
+
+
+def bsj_sashimi_annotation_path(wildcards):
+    if wildcards.method.startswith("dcc_"):
+        return f"{DCC_OUTDIR}/all_samples.dcc"
+    return f"{OUTDIR}/ciri3/all_samples.ciri3"
+
+
+def bsj_sashimi_bsj_matrix_path(wildcards):
+    if wildcards.method.startswith("dcc_"):
+        return f"{DCC_OUTDIR}/all_samples.dcc.BSJ_Matrix"
+    return f"{OUTDIR}/ciri3/all_samples.ciri3.BSJ_Matrix"
+
+
+def bsj_sashimi_fsj_matrix_path(wildcards):
+    if wildcards.method.startswith("dcc_"):
+        return f"{DCC_OUTDIR}/all_samples.dcc.FSJ_Matrix"
+    return f"{OUTDIR}/ciri3/all_samples.ciri3.FSJ_Matrix"
+
+
+def bsj_sashimi_source_name(wildcards):
+    if wildcards.method.startswith("dcc_"):
+        return "DCC"
+    return "CIRI3"
 
 
 RMATS_EVENT_TARGETS = (
@@ -739,6 +904,7 @@ CIRI3_DE_ENABLED_METHODS = (
 
 motif_cfg = config.get("motif", {})
 MOTIF_ENABLED = _as_bool(motif_cfg.get("enabled", True), default=True)
+DCC_MOTIF_ENABLED = DCC_RUN_MOTIF and MOTIF_ENABLED
 
 if DEG_ACTIVE and not DEG_COMPARISON_NAMES:
     raise ValueError("DEG/CIRI3/rMATS analysis is enabled, but no comparisons could be generated.")

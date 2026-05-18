@@ -1,6 +1,6 @@
 # Circular RNA Snakemake Analysis Pipeline
 
-This repository provides a reproducible Snakemake workflow for analyzing circular RNA from paired-end ribo-depleted RNA-seq data. The pipeline merges lane-level FASTQs to sample-level pairs, performs sample-level QC with fastp, generates MultiQC summaries, aligns reads to a reference genome with a prebuilt STAR index, performs BWA remapping for CIRI3, and performs downstream circRNA detection and quantification.
+This repository provides a reproducible Snakemake workflow for analyzing circular RNA from paired-end ribo-depleted RNA-seq data. The pipeline merges lane-level FASTQs to sample-level pairs, performs sample-level QC with fastp, generates MultiQC summaries, aligns reads to a reference genome with a prebuilt STAR index, performs BWA remapping for CIRI3, runs CIRI3 and optional DCC circRNA detection, and performs downstream quantification, differential analysis, sashimi plotting, and motif analysis.
 
 ## Overview
 
@@ -24,6 +24,13 @@ This repository provides a reproducible Snakemake workflow for analyzing circula
   - `results/ciri3/all_samples.ciri3`
   - `results/ciri3/all_samples.ciri3.BSJ_Matrix`
   - `results/ciri3/all_samples.ciri3.FSJ_Matrix`
+  - `results/dcc/raw/{CircRNACount,CircCoordinates,LinearCount,CircSkipJunctions}`
+  - `results/dcc/all_samples.dcc`
+  - `results/dcc/all_samples.dcc.BSJ_Matrix`
+  - `results/dcc/all_samples.dcc.FSJ_Matrix`
+  - `results/dcc/per_sample/<sample>.dcc`
+  - `results/dcc/per_sample/<sample>.dcc.BSJ_Matrix`
+  - `results/dcc/per_sample/<sample>.dcc.FSJ_Matrix`
   - `results/splicing/<sample>/circ_splice_sites.tsv`
   - `results/splicing/<sample>/summary.tsv`
   - `results/splicing/<sample>/distributions.tsv`
@@ -42,7 +49,16 @@ This repository provides a reproducible Snakemake workflow for analyzing circula
   - `results/motif/all_samples_top_known_motifs.tsv`
   - `results/motif/all_samples_overview.png`
   - `results/motif/all_samples_known_motif_heatmap.png`
-- **BSJ differential expression (optional, DESeq2 + CIRI3 DE modules)**
+  - `results/dcc/motif/<sample>/bsj_sites.tsv`
+  - `results/dcc/motif/<sample>/bsj_motif_summary.tsv`
+  - `results/dcc/motif/<sample>/homer/`
+  - `results/dcc/motif/all_samples_site_stats.tsv`
+  - `results/dcc/motif/all_samples_known_motif_summary.tsv`
+  - `results/dcc/motif/all_samples_homer_summary.tsv`
+  - `results/dcc/motif/all_samples_top_known_motifs.tsv`
+  - `results/dcc/motif/all_samples_overview.png`
+  - `results/dcc/motif/all_samples_known_motif_heatmap.png`
+- **BSJ differential expression (optional, DESeq2 + CIRI3 DE modules + DCC CircTest)**
   - `results/deg/deseq2/sample_metadata.tsv`
   - `results/deg/deseq2/all_groups/deseq2_results.tsv`
   - `results/deg/deseq2/all_groups/heatmap_top50.pdf`
@@ -53,6 +69,12 @@ This repository provides a reproducible Snakemake workflow for analyzing circula
   - `results/deg/deseq2/pairwise/<CaseGroup>_vs_<ControlGroup>/volcano_labeled.pdf`
   - `results/deg/deseq2/pairwise/<CaseGroup>_vs_<ControlGroup>/heatmap_top50.pdf`
   - `results/deg/deseq2/pairwise/<CaseGroup>_vs_<ControlGroup>/pca.pdf`
+  - `results/deg/dcc_deseq2/all_groups/deseq2_results.tsv`
+  - `results/deg/dcc_deseq2/all_groups/{heatmap_top50,pca}.pdf`
+  - `results/deg/dcc_deseq2/all_groups/vst_counts.tsv`
+  - `results/deg/dcc_deseq2/pairwise/<CaseGroup>_vs_<ControlGroup>/{deseq2_results.tsv,volcano.pdf,volcano_labeled.pdf,heatmap_top50.pdf,pca.pdf}`
+  - `results/deg/dcc_circtest/all_groups/{circtest_results.tsv,circtest_summary.tsv,filtered_circ_counts.tsv,filtered_linear_counts.tsv,ratio_plots.pdf}`
+  - `results/deg/dcc_circtest/pairwise/<CaseGroup>_vs_<ControlGroup>/{circtest_results.tsv,circtest_summary.tsv,filtered_circ_counts.tsv,filtered_linear_counts.tsv,ratio_plots.pdf}`
   - `results/deg/ciri3/<CaseGroup>_vs_<ControlGroup>/de_bsj/result.txt`
   - `results/deg/ciri3/<CaseGroup>_vs_<ControlGroup>/de_bsj/{heatmap_top50,pca,volcano,volcano_labeled}.pdf`
   - `results/deg/ciri3/<CaseGroup>_vs_<ControlGroup>/de_ratio/result.txt`
@@ -65,17 +87,17 @@ This repository provides a reproducible Snakemake workflow for analyzing circula
   - `results/rmats/groups/<Group>/{SE,A5SS,A3SS,MXE,RI}.MATS.JCEC.txt`
   - `results/rmats/groups/<Group>/summary.txt`
   - `results/rmats/groups/<Group>/inputs/b1.txt`
-- **BSJ-centered sashimi plots from DESeq2/CIRI3 DEG calls (optional)**
+- **BSJ-centered sashimi plots from DESeq2/CIRI3/DCC DEG calls (optional)**
   - `results/rmats/sashimi/bsj/inputs/{b1,b2}.txt`
   - `results/rmats/sashimi/bsj/inputs/grouping.gf`
-  - `results/rmats/sashimi/bsj/<deseq2|de_bsj|de_ratio|de_relative>/<CaseGroup>_vs_<ControlGroup>/manifest.tsv`
+  - `results/rmats/sashimi/bsj/<deseq2|de_bsj|de_ratio|de_relative|dcc_deseq2|dcc_circtest>/<CaseGroup>_vs_<ControlGroup>/manifest.tsv`
   - `results/rmats/sashimi/bsj/<method>/<CaseGroup>_vs_<ControlGroup>/plots/<bsj>/Sashimi_plot/*.pdf`
   - `results/rmats/sashimi/bsj/<method>/<CaseGroup>_vs_<ControlGroup>/plots_bsj_only/<bsj>/Sashimi_plot/*.pdf`
 
 ### Intermediate file handling
 To minimize storage footprint, intermediate FASTQs produced by fastp and merged FASTQs are marked as temporary and are removed automatically by Snakemake. In addition, STAR/BWA BAM files are temporary by default (`output.keep_bam: false`) and will be removed after downstream rules finish. Set `output.keep_bam: true` if you want to retain BAM/BAI files. Final deliverables include:
 - QC reports (fastp + multiqc)
-- CIRI3 per-sample outputs and all-sample merged outputs
+- CIRI3 per-sample outputs, DCC all-sample outputs, and normalized matrices for both callers
 - featureCounts count matrices
 
 ## Pipeline steps
@@ -93,11 +115,13 @@ To minimize storage footprint, intermediate FASTQs produced by fastp and merged 
    Unmapped STAR mates are remapped by BWA to generate the CIRI3-required BWA BAM.
 
 5. **circRNA quantification and aggregation**  
-   Gene-level quantification is generated with featureCounts and circular RNA detection is run with CIRI3. The workflow writes per-sample CIRI3 outputs first, then merges all samples into `all_samples.ciri3`, `all_samples.ciri3.BSJ_Matrix`, and `all_samples.ciri3.FSJ_Matrix` with sample names as matrix column names.
+   Gene-level quantification is generated with featureCounts and circular RNA detection is run with CIRI3. The workflow writes per-sample CIRI3 outputs first, then merges all samples into `all_samples.ciri3`, `all_samples.ciri3.BSJ_Matrix`, and `all_samples.ciri3.FSJ_Matrix` with sample names as matrix column names. If `dcc.enabled: true`, DCC is also run from the STAR joint `Chimeric.out.junction`, coordinate-sorted BAM, BAM index, and `SJ.out.tab` files. The raw DCC files are kept under `results/dcc/raw/`, then normalized into `all_samples.dcc`, `all_samples.dcc.BSJ_Matrix`, `all_samples.dcc.FSJ_Matrix`, and per-sample matrices so downstream modules can consume DCC in the same shape as CIRI3. The current DCC integration uses the existing joint paired-end STAR mapping; it does not add DCC's optional paired-independent mate1/mate2 STAR remapping step.
 
 6. **BSJ differential expression (optional)**  
-   The unified `deg:` block controls both DESeq2 and CIRI3 differential modules:
+   The unified `deg:` block controls CIRI3-based differential modules and the shared DESeq2 analysis. DCC has its own downstream switches under `dcc:`:
    - `deg.run_deseq2: true` runs DESeq2 BSJ differential analysis from `all_samples.ciri3.BSJ_Matrix` (overall + pairwise with volcano/heatmap/PCA plots),
+   - `dcc.run_deseq2: true` runs the same DESeq2 BSJ differential analysis from `all_samples.dcc.BSJ_Matrix` under `results/deg/dcc_deseq2`,
+   - `dcc.run_circtest: true` runs CircTest directly from DCC `CircRNACount` and `LinearCount` under `results/deg/dcc_circtest`,
    - `deg.run_de_bsj: true` runs CIRI3 `DE_BSJ` pairwise analysis (with per-pair `infor.tsv`, BSJ matrix subset, featureCounts-derived gene expression matrix, and volcano/heatmap/PCA plots),
    - `deg.run_de_ratio: true` runs CIRI3 `DE_Ratio` pairwise analysis (with per-pair `infor.tsv`, BSJ subset, FSJ subset, and volcano/heatmap/PCA plots),
    - `deg.run_de_relative: true` runs CIRI3 `DE_Relative` pairwise analysis (with per-pair `infor.tsv` built from sample CIRI3 result paths, plus volcano/heatmap/PCA plots).
@@ -107,13 +131,13 @@ To minimize storage footprint, intermediate FASTQs produced by fastp and merged 
 7. **rMATS-turbo alternative splicing and sashimi plots (optional)**
    `rmats_turbo.enabled: true` runs rMATS-turbo on the STAR coordinate-sorted BAM files independently for each `deg.groups` group. The workflow writes one `b1.txt` per group, calls `rmats.py --b1 --gtf ... --statoff`, and stores the standard `SE`, `A5SS`, `A3SS`, `MXE`, and `RI` event-count files under `results/rmats/groups/<Group>/` without doing pairwise statistical testing.
 
-   `sashimi.enabled: true` then uses the significant BSJ sites called by enabled differential modules (`deg.run_deseq2`, `deg.run_de_bsj`, `deg.run_de_ratio`, `deg.run_de_relative`). Each method/comparison gets its own folder under `results/rmats/sashimi/bsj/<method>/<comparison>/`. For every selected BSJ, the workflow calls `rmats2sashimiplot` in coordinate mode over the BSJ span plus `sashimi.bsj_flank`, with a shared grouping file that plots all configured groups on the same locus. CIRI3 `BSJ_Matrix` counts are converted into event-level pseudo-BAM junction reads before plotting, so MISO can draw BSJ arcs directly: `plots/` uses real regional BAM reads plus the CIRI3 pseudo-junction reads, while `plots_bsj_only/` uses only the CIRI3 pseudo-junction reads. If `reference.gff3`/`sashimi.annotation_gff3` is not provided, a GFF3 is generated from `reference.gtf`. BSJ plots also write `annotations/bsj_augmented.gff3`, a copy of the plotting annotation with synthetic circRNA/BSJ features added for the selected loci, so unannotated BSJs still have an annotation-track label. The original full-annotation plots remain under `plots/`, and an additional BSJ-only annotation-track version is written under `plots_bsj_only/` using per-event synthetic GFF3 files under `annotations/bsj_only/`. With `sashimi.auto_scale: true`, each BSJ plot can increase figure width/height and reduce font size within configured bounds to avoid read-count label overlap on dense or small panels.
+   `sashimi.enabled: true` then uses the significant BSJ sites called by enabled differential modules (`deg.run_deseq2`, `deg.run_de_bsj`, `deg.run_de_ratio`, `deg.run_de_relative`, plus `dcc.run_deseq2` and `dcc.run_circtest` when `dcc.run_sashimi` is true). Each method/comparison gets its own folder under `results/rmats/sashimi/bsj/<method>/<comparison>/`; DCC plots use the method names `dcc_deseq2` and `dcc_circtest`. For every selected BSJ, the workflow calls `rmats2sashimiplot` in coordinate mode over the BSJ span plus `sashimi.bsj_flank`, with a shared grouping file that plots all configured groups on the same locus. Caller-specific `BSJ_Matrix` counts are converted into event-level pseudo-BAM junction reads before plotting, so MISO can draw BSJ arcs directly: `plots/` uses real regional BAM reads plus pseudo-junction reads, while `plots_bsj_only/` uses only pseudo-junction reads. If `reference.gff3`/`sashimi.annotation_gff3` is not provided, a GFF3 is generated from `reference.gtf`. BSJ plots also write `annotations/bsj_augmented.gff3`, a copy of the plotting annotation with synthetic circRNA/BSJ features added for the selected loci, so unannotated BSJs still have an annotation-track label. The original full-annotation plots remain under `plots/`, and an additional BSJ-only annotation-track version is written under `plots_bsj_only/` using per-event synthetic GFF3 files under `annotations/bsj_only/`. With `sashimi.auto_scale: true`, each BSJ plot can increase figure width/height and reduce font size within configured bounds to avoid read-count label overlap on dense or small panels.
 
 8. **Splicing-site and back-splicing feature statistics (enabled by default)**
    The workflow computes per-sample circRNA splicing-site feature tables using each sample's CIRI3 BSJ/FSJ matrices plus the reference genome FASTA. It reports BSJ/FSJ counts, CIRI/CIRIquant-style junction ratio (`2 * BSJ / (2 * BSJ + FSJ)`), BSJ span, CIRI3 metadata, and splice-site dinucleotide classes (canonical `GU-AG`, semi-canonical `GC-AG`, minor `AU-AC`, non-canonical, unknown). It also identifies strand-aware alternative back-splicing (ABS) events from BSJs that share one back-splice site but use alternative partner sites: A5BS shares the 3' back-splice site and varies the 5' site, while A3BS shares the 5' site and varies the 3' site. Each ABS member is annotated with event-level BSJ support, site count, rank, and Percent Circularized-site Usage (PCU = member BSJ / event BSJ total). Per-sample plots are merged into unified summary/distribution/ABS tables and an overview figure.
 
 9. **BSJ motif analysis (optional, enabled by default)**
-   The workflow exports BSJ donor/acceptor sequence windows for each sample into `results/motif/<sample>/bsj_sites.tsv` and `results/motif/<sample>/bsj_sites.fa`, then runs HOMER `findMotifs.pl` per sample. It also performs all-sample motif summary statistics/plots. Outputs include:
+   The workflow exports CIRI3 BSJ donor/acceptor sequence windows for each sample into `results/motif/<sample>/bsj_sites.tsv` and `results/motif/<sample>/bsj_sites.fa`, then runs HOMER `findMotifs.pl` per sample. If `dcc.enabled: true` and `dcc.run_motif: true`, the same motif workflow is run from DCC per-sample BSJ matrices under `results/dcc/motif/`. It also performs all-sample motif summary statistics/plots. CIRI3 outputs include:
    - `results/motif/<sample>/bsj_sites.tsv` (per-BSJ sequence windows),
    - `results/motif/<sample>/bsj_motif_summary.tsv` (copied from HOMER `knownResults.txt`),
    - `results/motif/<sample>/homer/` (full HOMER result directory),
@@ -123,6 +147,7 @@ To minimize storage footprint, intermediate FASTQs produced by fastp and merged 
    - `results/motif/all_samples_top_known_motifs.tsv` (motif-level recurrence/significance summary across samples),
    - `results/motif/all_samples_overview.png`,
    - `results/motif/all_samples_known_motif_heatmap.png`.
+   DCC motif outputs use the same filenames under `results/dcc/motif/`.
 
 ## Requirements
 
@@ -132,12 +157,15 @@ To minimize storage footprint, intermediate FASTQs produced by fastp and merged 
 - samtools
 - fastp
 - MultiQC
+- DCC
+- circtools / CircTest
 - Python packages: `pysam`
+- R packages for DCC CircTest: `CircTest`, `aod`, `ggplot2`, `plyr`
 - HOMER (`findMotifs.pl`)
 - rMATS-turbo build dependencies (provided by `workflow/rules/envs/rmats_turbo.yaml` when using conda)
 - rmats2sashimiplot dependencies: Python, numpy, scipy, matplotlib, pysam, samtools, bedtools
 
-All dependencies are provided via the conda environments under `workflow/rules/envs/`. The workflow automatically clones CIRI3, rMATS-turbo, and rmats2sashimiplot from GitHub and uses the configured tags/refs.
+All dependencies are provided via the conda environments under `workflow/rules/envs/`. The workflow automatically clones CIRI3, rMATS-turbo, and rmats2sashimiplot from GitHub and uses the configured tags/refs. DCC, circtools, and the R dependencies for CircTest are installed through `workflow/rules/envs/dcc.yaml`.
 
 ## Installation
 
@@ -167,6 +195,17 @@ Key fields:
 * `ciri3.repo_url`: CIRI3 Git repository to clone automatically (default: `https://github.com/gyjames/CIRI3.git`)
 * `ciri3.ref`: CIRI3 Git tag/branch/commit to check out (default: `v3.0.1`, the official Git tag corresponding to CIRI-3.0.1)
 * `ciri3.install_dir`: optional local checkout directory; by default the checkout is stored under `results/resources/ciri3/<ref>`
+* `dcc.enabled`: run DCC in parallel with CIRI3 from STAR joint chimeric/BAM/SJ outputs
+* `dcc.stranded`: DCC library-strand mode; set `false` for unstranded data so the workflow passes DCC `-N`
+* `dcc.secondstrand`: pass DCC `-ss` for second-strand libraries
+* `dcc.repeat_gtf`: optional repeat-region GTF for DCC `-R`; leave empty to skip repeat masking
+* `dcc.filter`, `dcc.filter_chrM`, `dcc.filter_by_gene`: DCC filtering switches for `-F`, `-M`, and `-fg`
+* `dcc.min_count`, `dcc.min_replicates`: DCC `-Nr` thresholds
+* `dcc.run_deseq2`: run DESeq2 downstream from DCC BSJ counts under `results/deg/dcc_deseq2`
+* `dcc.run_circtest`: run CircTest directly from DCC `CircRNACount` and `LinearCount` under `results/deg/dcc_circtest`
+* `dcc.circtest_filter_sample`, `dcc.circtest_filter_count`, `dcc.circtest_percentage`, `dcc.circtest_max_plots`: CircTest filtering and ratio-plot settings
+* `dcc.run_sashimi`: include DCC DESeq2 and CircTest significant BSJs in BSJ-centered sashimi plotting as `dcc_deseq2` and `dcc_circtest`
+* `dcc.run_motif`: run HOMER BSJ motif analysis from DCC per-sample matrices under `results/dcc/motif`
 * `samples`: mapping of sample name to lists of FASTQs for R1 and R2
 * `threads`: module-level CPU thread settings (configure each module independently; e.g., `threads.homer` for HOMER, `threads.samtools_view` for CIRI3 SAM conversion, `threads.splicing_stats` for splicing summary scripts)
 * `output.keep_bam`: keep STAR/BWA BAM files (`false` by default to save disk)
@@ -186,7 +225,7 @@ Key fields:
 * `rmats_turbo.read_length`: nominal read length passed to rMATS `--readLength`; update this for your sequencing data
 * `rmats_turbo.lib_type`: rMATS library type (`fr-unstranded`, `fr-firststrand`, or `fr-secondstrand`)
 * `rmats_turbo.variable_read_length`: add `--variable-read-length`, useful after trimming
-* `sashimi.enabled`: plot significant BSJ sites from enabled DESeq2/CIRI3 DEG methods with rmats2sashimiplot coordinate mode
+* `sashimi.enabled`: plot significant BSJ sites from enabled DESeq2/CIRI3/DCC DEG methods with rmats2sashimiplot coordinate mode
 * `sashimi.annotation_gff3` or `reference.gff3`: optional GFF3 annotation for coordinate-mode sashimi plots; otherwise the workflow converts `reference.gtf`
 * BSJ sashimi outputs include the original full-annotation plot under `plots/` and a BSJ-only annotation-track plot under `plots_bsj_only/`
 * `sashimi.bsj_flank`: bases added to both sides of each BSJ span for plotting (default `250`)
@@ -220,6 +259,15 @@ reference:
 ciri3:
   repo_url: "https://github.com/gyjames/CIRI3.git"
   ref: "v3.0.1"
+
+dcc:
+  enabled: true
+  stranded: false
+  repeat_gtf: ""
+  run_deseq2: true
+  run_circtest: true
+  run_sashimi: true
+  run_motif: true
 
 samples:
   sampleA:

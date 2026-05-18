@@ -392,9 +392,9 @@ rule rmats2sashimi_plot_bsj_events:
         script=RMATS2SASHIMI_SCRIPT,
         ready=RMATS2SASHIMI_READY,
         result=bsj_sashimi_result_path,
-        ciri3=f"{OUTDIR}/ciri3/all_samples.ciri3",
-        bsj_matrix=f"{OUTDIR}/ciri3/all_samples.ciri3.BSJ_Matrix",
-        fsj_matrix=f"{OUTDIR}/ciri3/all_samples.ciri3.FSJ_Matrix",
+        ciri3=bsj_sashimi_annotation_path,
+        bsj_matrix=bsj_sashimi_bsj_matrix_path,
+        fsj_matrix=bsj_sashimi_fsj_matrix_path,
         gff3=SASHIMI_GFF3,
         b1=f"{OUTDIR}/rmats/sashimi/bsj/inputs/b1.txt",
         b2=f"{OUTDIR}/rmats/sashimi/bsj/inputs/b2.txt",
@@ -409,7 +409,7 @@ rule rmats2sashimi_plot_bsj_events:
         bsj_only_plots=directory(f"{OUTDIR}/rmats/sashimi/bsj/{{method}}/{{comparison}}/plots_bsj_only")
     wildcard_constraints:
         method=BSJ_SASHIMI_METHOD_REGEX,
-        comparison=CIRI3_DE_COMPARISON_REGEX
+        comparison=DEG_COMPARISON_REGEX
     params:
         outdir=lambda wc: f"{OUTDIR}/rmats/sashimi/bsj/{wc.method}/{wc.comparison}",
         padj_cutoff=DEG_PADJ_CUTOFF,
@@ -432,7 +432,8 @@ rule rmats2sashimi_plot_bsj_events:
         label_b2="other_groups",
         colors=SASHIMI_COLORS,
         fail_on_error=SASHIMI_FAIL_ON_ERROR,
-        extra_args=SASHIMI_EXTRA_ARGS
+        extra_args=SASHIMI_EXTRA_ARGS,
+        source_name=bsj_sashimi_source_name
     log:
         "logs/rmats/sashimi/bsj/{method}.{comparison}.log"
     threads: int(config["threads"].get("sashimi", 1))
