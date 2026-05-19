@@ -7,7 +7,8 @@ rule dcc_detect_star:
         bai=expand(f"{OUTDIR}/star/{{sample}}/{{sample}}.Aligned.sortedByCoord.out.bam.bai", sample=SAMPLES),
         sj=expand(f"{OUTDIR}/star/{{sample}}/{{sample}}.SJ.out.tab", sample=SAMPLES),
         fasta=config["reference"]["fasta"],
-        gtf=config["reference"]["gtf"]
+        gtf=config["reference"]["gtf"],
+        dcc_runner=DCC_RUNNER_SCRIPT
     output:
         circ_counts=f"{DCC_RAW_OUTDIR}/CircRNACount",
         circ_coordinates=f"{DCC_RAW_OUTDIR}/CircCoordinates",
@@ -75,7 +76,7 @@ rule dcc_detect_star:
           "{output.linear_counts}" \
           "{output.circ_skip}"
 
-        DCC "@$samplesheet" \
+        python "{input.dcc_runner}" "@$samplesheet" \
           -T {threads} \
           -O "$raw_dir" \
           -t "$tmp_dir" \

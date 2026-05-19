@@ -28,6 +28,12 @@ DCC_NORMALIZE_SCRIPT = os.path.join(
     "scripts",
     "normalize_dcc_outputs.py",
 )
+DCC_RUNNER_SCRIPT = os.path.join(
+    workflow.basedir,
+    "rules",
+    "scripts",
+    "run_dcc_with_htseq_patch.py",
+)
 
 
 def _sanitize_path_component(value):

@@ -15,7 +15,7 @@ on.exit({
 if (!requireNamespace("CircTest", quietly = TRUE)) {
   stop(
     "The R package 'CircTest' is required for dcc.run_circtest. ",
-    "Install circtools/CircTest in workflow/rules/envs/dcc.yaml or disable dcc.run_circtest."
+    "Install circtools/CircTest in workflow/rules/envs/circtest.yaml or disable dcc.run_circtest."
   )
 }
 suppressPackageStartupMessages(library(CircTest))

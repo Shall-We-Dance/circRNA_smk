@@ -116,7 +116,7 @@ rule dcc_circtest_all_groups:
         percentage=DCC_CIRCTEST_PERCENTAGE,
         max_plots=DCC_CIRCTEST_MAX_PLOTS
     conda:
-        "envs/dcc.yaml"
+        "envs/circtest.yaml"
     log:
         "logs/dcc_deg/circtest.all_groups.log"
     script:
@@ -157,7 +157,7 @@ rule dcc_circtest_pairwise:
         percentage=DCC_CIRCTEST_PERCENTAGE,
         max_plots=DCC_CIRCTEST_MAX_PLOTS
     conda:
-        "envs/dcc.yaml"
+        "envs/circtest.yaml"
     log:
         "logs/dcc_deg/circtest.{comparison}.log"
     script:

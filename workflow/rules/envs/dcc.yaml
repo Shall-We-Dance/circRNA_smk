@@ -2,12 +2,14 @@ name: dcc
 channels:
   - conda-forge
   - bioconda
+  - nodefaults
 dependencies:
-  - dcc=0.5.0
-  - circtools
+  - python=3.12
+  - pip
+  - numpy
+  - pandas
+  - pysam
+  - htseq
   - samtools
-  - r-base
-  - r-aod
-  - r-plyr
-  - r-ggplot2
-  - python>=3.9
+  - pip:
+      - https://github.com/dieterich-lab/DCC/archive/refs/tags/v0.5.0.tar.gz
