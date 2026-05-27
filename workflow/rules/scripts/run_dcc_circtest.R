@@ -12,12 +12,56 @@ on.exit({
   close(log_con)
 }, add = TRUE)
 
-if (!requireNamespace("CircTest", quietly = TRUE)) {
-  stop(
-    "The R package 'CircTest' is required for dcc.run_circtest. ",
-    "Install circtools/CircTest in workflow/rules/envs/circtest.yaml or disable dcc.run_circtest."
-  )
+ensure_circtest <- function(timeout_seconds = 1800, poll_seconds = 10) {
+  if (requireNamespace("CircTest", quietly = TRUE)) {
+    return(invisible(TRUE))
+  }
+  if (!requireNamespace("remotes", quietly = TRUE)) {
+    stop(
+      "The R package 'CircTest' is required for dcc.run_circtest, and ",
+      "'remotes' is required to install it from GitHub. Recreate the ",
+      "Snakemake conda environment from workflow/rules/envs/circtest.yaml."
+    )
+  }
+
+  install_lib <- .libPaths()[[1]]
+  dir.create(install_lib, recursive = TRUE, showWarnings = FALSE)
+  lock_dir <- file.path(install_lib, "00LOCK-circRNA_smk-CircTest")
+  deadline <- Sys.time() + timeout_seconds
+
+  repeat {
+    if (dir.create(lock_dir, showWarnings = FALSE)) {
+      on.exit(unlink(lock_dir, recursive = TRUE, force = TRUE), add = TRUE)
+      if (!requireNamespace("CircTest", quietly = TRUE)) {
+        message("Installing CircTest from dieterich-lab/CircTest into ", install_lib)
+        remotes::install_github(
+          "dieterich-lab/CircTest",
+          dependencies = FALSE,
+          upgrade = "never",
+          build_vignettes = FALSE,
+          lib = install_lib
+        )
+      }
+      break
+    }
+
+    if (requireNamespace("CircTest", quietly = TRUE)) {
+      break
+    }
+    if (Sys.time() > deadline) {
+      stop("Timed out waiting for concurrent CircTest installation lock: ", lock_dir)
+    }
+    message("Waiting for another job to finish installing CircTest: ", lock_dir)
+    Sys.sleep(poll_seconds)
+  }
+
+  if (!requireNamespace("CircTest", quietly = TRUE)) {
+    stop("Unable to load CircTest after installation attempt.")
+  }
+  invisible(TRUE)
 }
+
+ensure_circtest()
 suppressPackageStartupMessages(library(CircTest))
 
 list_param <- function(value) {

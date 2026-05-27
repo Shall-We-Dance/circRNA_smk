@@ -165,7 +165,7 @@ To minimize storage footprint, intermediate FASTQs produced by fastp and merged 
 - rMATS-turbo build dependencies (provided by `workflow/rules/envs/rmats_turbo.yaml` when using conda)
 - rmats2sashimiplot dependencies: Python, numpy, scipy, matplotlib, pysam, samtools, bedtools
 
-All dependencies are provided via the conda environments under `workflow/rules/envs/`. The workflow automatically clones CIRI3, rMATS-turbo, and rmats2sashimiplot from GitHub and uses the configured tags/refs. DCC detection uses `workflow/rules/envs/dcc.yaml`, which installs DCC v0.5.0 from the official GitHub source after conda resolves the Python dependencies, while DCC CircTest uses `workflow/rules/envs/circtest.yaml`.
+All dependencies are provided via the conda environments under `workflow/rules/envs/`. The workflow automatically clones CIRI3, rMATS-turbo, and rmats2sashimiplot from GitHub and uses the configured tags/refs. DCC detection uses `workflow/rules/envs/dcc.yaml`, which installs DCC v0.5.0 from the official GitHub source after conda resolves the Python dependencies. DCC CircTest uses `workflow/rules/envs/circtest.yaml` for R dependencies and installs the `dieterich-lab/CircTest` R package into that conda environment on first use.
 
 ## Installation
 

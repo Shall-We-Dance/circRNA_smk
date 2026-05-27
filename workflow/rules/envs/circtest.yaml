@@ -6,6 +6,7 @@ channels:
 dependencies:
   - bioconda::circtools
   - r-base
+  - r-remotes
   - r-aod
   - r-plyr
   - r-ggplot2
