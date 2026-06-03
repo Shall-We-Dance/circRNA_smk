@@ -1,240 +1,211 @@
-threads:
-  merge_fastq: 2          # merge lane FASTQ files by sample
-  fastp: 8                # fastp --thread
-  star: 16                # STAR --runThreadN
-  bwa: 16                 # bwa mem -t (for CIRI3 remap)
-  samtools_index: 8       # samtools index -@
-  samtools_view: 8        # samtools view -@ (CIRI3 prep)
-  featurecounts: 8        # featureCounts -T
-  faidx: 2                # samtools faidx (reference index)
-  homer: 8                # findMotifs.pl -p
-  splicing_stats: 2       # per-sample and merged splicing-site summaries
-  dcc: 8                  # DCC -T
-  rmats: 8                # rMATS-turbo --nthread
-  sashimi: 2              # Snakemake scheduling threads for rmats2sashimiplot jobs
-
 reference:
-  # STAR genome index folder (must be prebuilt, e.g. contains SA file)
-  star_index: "resources/genomeIndex/refGen"
-  # Example: GCF_002204515.2.fa
-  fasta: "resources/genomeIndex/GCF_002204515.2.fa"
-  # FASTA path used as BWA index prefix. Must already have:
-  # <bwa_indexed_fasta>.amb/.ann/.bwt/.pac/.sa
-  bwa_indexed_fasta: "resources/genomeIndex/GCF_002204515.2.fa"
-  # Example: GCF_002204515.2_AaegL5.0.ncbiRefSeq.gtf
-  gtf: "resources/genomeIndex/GCF_002204515.2_AaegL5.0.ncbiRefSeq.gtf"
+  star_index: "/projects/cell-surface/circRNA/genomeIndex/refGen_folder"
+  fasta: "/projects/cell-surface/circRNA/genomeIndex/GCF_002204515.2.fa"
+  bwa_indexed_fasta: "/projects/cell-surface/circRNA/genomeIndex/GCF_002204515.2.fa"
+  gtf: "/projects/cell-surface/circRNA/genomeIndex/GCF_002204515.2_AaegL5.0.ncbiRefSeq.gtf"
+
+output:
+  dir: "results"
+  keep_bam: false
 
 samples:
-  sampleA:
-    R1:
-      - "raw/sampleA_rep1_r1.fastq.gz"
-      - "raw/sampleA_rep2_r1.fastq.gz"
-      - "raw/sampleA_rep3_r1.fastq.gz"
-    R2:
-      - "raw/sampleA_rep1_r2.fastq.gz"
-      - "raw/sampleA_rep2_r2.fastq.gz"
-      - "raw/sampleA_rep3_r2.fastq.gz"
 
-  sampleB:
+  "Mock_R1":
     R1:
-      - "raw/sampleB_R1.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134199_1.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134200_1.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134201_1.fastq.gz"
     R2:
-      - "raw/sampleB_R2.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134199_2.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134200_2.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134201_2.fastq.gz"
 
-  sampleC:
+  "Mock_R2":
     R1:
-      - "raw/sampleC_R1.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134202_1.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134203_1.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134204_1.fastq.gz"
     R2:
-      - "raw/sampleC_R2.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134202_2.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134203_2.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134204_2.fastq.gz"
 
-  sampleD:
+  "Mock_R3":
     R1:
-      - "raw/sampleD_R1.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134205_1.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134206_1.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134207_1.fastq.gz"
     R2:
-      - "raw/sampleD_R2.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134205_2.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134206_2.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134207_2.fastq.gz"
 
-  sampleE:
+  "WT_ZIKV_R1":
     R1:
-      - "raw/sampleE_R1.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134208_1.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134209_1.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134210_1.fastq.gz"
     R2:
-      - "raw/sampleE_R2.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134208_2.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134209_2.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134210_2.fastq.gz"
 
-  sampleF:
+  "WT_ZIKV_R2":
     R1:
-      - "raw/sampleF_R1.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134211_1.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134212_1.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134213_1.fastq.gz"
     R2:
-      - "raw/sampleF_R2.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134211_2.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134212_2.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134213_2.fastq.gz"
 
-  sampleG:
+  "WT_ZIKV_R3":
     R1:
-      - "raw/sampleG_R1.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134214_1.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134215_1.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134216_1.fastq.gz"
     R2:
-      - "raw/sampleG_R2.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134214_2.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134215_2.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134216_2.fastq.gz"
 
-  sampleH:
+  "xrRNA2_ZIKV_R1":
     R1:
-      - "raw/sampleH_R1.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134217_1.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134218_1.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134219_1.fastq.gz"
     R2:
-      - "raw/sampleH_R2.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134217_2.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134218_2.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134219_2.fastq.gz"
 
-  sampleI:
+  "xrRNA2_ZIKV_R2":
     R1:
-      - "raw/sampleI_R1.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134220_1.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134221_1.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134222_1.fastq.gz"
     R2:
-      - "raw/sampleI_R2.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134220_2.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134221_2.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134222_2.fastq.gz"
+
+  "xrRNA2_ZIKV_R3":
+    R1:
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134223_1.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134224_1.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134225_1.fastq.gz"
+    R2:
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134223_2.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134224_2.fastq.gz"
+      - "/projects/cell-surface/nature_SRP199629/srr/SRR9134225_2.fastq.gz"
+
+threads:
+  merge_fastq: 2
+  fastp: 3
+  star: 16
+  bwa: 16
+  samtools_index: 8
+  samtools_view: 8
+  featurecounts: 8
+  faidx: 2
+  homer: 8
+  splicing_stats: 2
+  rmats: 8
+  sashimi: 2
+  circtools_detect: 16
 
 fastp:
-  # dedup + adapter trimming
+  extra_args: ""
   dedup_adapter:
     dedup: true
 
 ciri3:
-  # CIRI3 source is cloned automatically; official GitHub tag for CIRI-3.0.1 is v3.0.1
-  repo_url: "https://github.com/gyjames/CIRI3.git"
-  ref: "v3.0.1"
-  # CIRI3 main parameters
-  Ma: 1
-  W: 1
-
-dcc:
-  # Run DCC in parallel with CIRI3 from the same STAR Chimeric.out.junction,
-  # coordinate-sorted BAM, and SJ.out.tab outputs.
   enabled: true
-  # DCC defaults to stranded mode; this example follows rmats_turbo.lib_type:
-  # false for fr-unstranded data, true for stranded data.
-  stranded: false
-  secondstrand: false
-  # Optional RepeatMasker/SimpleRepeats-style GTF used by DCC -R. Leave empty
-  # to run DCC's count/gene filters without repeat-region masking.
-  repeat_gtf: ""
-  filter: true
-  filter_chrM: true
-  filter_by_gene: true
-  run_gene_counts: true
-  run_deseq2: true
-  run_circtest: true
-  run_sashimi: true
-  run_motif: true
-  min_count: 2
-  min_replicates: 2
-  # CircTest filters. CircTest uses DCC CircRNACount plus LinearCount and
-  # tests circular-to-host-gene relative abundance changes.
-  circtest_filter_sample: 2
-  circtest_filter_count: 5
-  circtest_percentage: 0.01
-  circtest_max_plots: 50
-  min_length: 30
-  max_length: 1000000
-  end_tolerance: 5
-  extra_args: ""
-
-motif:
-  # run BSJ-centered motif analysis with HOMER based on CIRI3 and, when enabled,
-  # DCC per-sample BSJ matrices
-  enabled: true
-  # sequence window size on each side of BSJ donor/acceptor site
-  flank: 30
-  # how to weight each BSJ when aggregating site-level support for sequence export: sum | mean | none
-  weight_mode: "sum"
-  # motif lengths for HOMER findMotifs.pl, comma-separated
-  homer_len: "8,10,12"
-
-output:
-  dir: "results"
-  # keep STAR/BWA BAM files after pipeline finishes
-  keep_bam: false
 
 deg:
-  # run BSJ differential analysis with DESeq2
-  run_deseq2: true
-  # CIRI3 differential analysis options
-  run_de_bsj: true
-  run_de_ratio: true
-  run_de_relative: true
-  ciri3_gene_expression_from_featurecounts: true
-  # minimum BSJ count across selected samples
-  min_total_count: 10
-  # minimum number of selected samples with BSJ count > 0
-  min_samples_detected: 2
-  # significance thresholds used for labels and volcano highlighting
-  padj_cutoff: 0.05
-  lfc_cutoff: 1.0
-  # group name -> sample names (must exist in "samples")
+  # All analysis off — groups and comparisons are kept here solely so the
+  # circtools arm knows how to group samples and which contrasts to run.
+  run_deseq2: false
+  run_de_bsj: false
+  run_de_ratio: false
+  run_de_relative: false
+  ciri3_gene_expression_from_featurecounts: false
+
   groups:
-    conditionX:
-      - sampleA
-      - sampleB
-      - sampleC
-    conditionY:
-      - sampleD
-      - sampleE
-      - sampleF
-    conditionZ:
-      - sampleG
-      - sampleH
-      - sampleI
+    Mock:
+      - Mock_R1
+      - Mock_R2
+      - Mock_R3
+    WT_ZIKV:
+      - WT_ZIKV_R1
+      - WT_ZIKV_R2
+      - WT_ZIKV_R3
+    xrRNA2_ZIKV:
+      - xrRNA2_ZIKV_R1
+      - xrRNA2_ZIKV_R2
+      - xrRNA2_ZIKV_R3
+
+  comparisons:
+    WT_ZIKV_vs_Mock:
+      case_group: WT_ZIKV
+      control_group: Mock
+    xrRNA2_ZIKV_vs_Mock:
+      case_group: xrRNA2_ZIKV
+      control_group: Mock
+    xrRNA2_ZIKV_vs_WT_ZIKV:
+      case_group: xrRNA2_ZIKV
+      control_group: WT_ZIKV
+
+motif:
+  enabled: false
+
+splicing_stats:
+  enabled: false
 
 rmats_turbo:
-  # run rMATS-turbo on STAR coordinate-sorted BAMs separately for each deg.group.
-  # The workflow uses --b1 plus --statoff for each group, so rMATS counts AS
-  # events without doing a pairwise statistical comparison.
-  enabled: true
-  repo_url: "https://github.com/Xinglab/rmats-turbo.git"
-  ref: "v4.3.0"
-  # rMATS requires --readLength even when --variable-read-length is enabled;
-  # set this to your library's nominal read length after trimming/alignment.
-  read_length: 150
-  read_type: "paired"
-  lib_type: "fr-unstranded"
-  variable_read_length: true
-  allow_clipping: false
-  novel_splice_sites: false
-  paired_stats: false
-  statoff: false
-  individual_counts: false
-  event_types: ["SE", "A5SS", "A3SS", "MXE", "RI"]
-  count_types: ["JC", "JCEC"]
+  enabled: false
 
 sashimi:
-  # plot significant BSJ sites from DESeq2 and enabled CIRI3/DCC DEG methods.
-  # Each method/comparison gets its own directory, and every selected BSJ is
-  # plotted across all deg.groups with rmats2sashimiplot coordinate mode.
-  # Caller BSJ counts are converted into event-level pseudo-BAM junction reads
-  # so rmats2sashimiplot/MISO can draw BSJ arcs in plots/ and plots_bsj_only/.
+  enabled: false
+
+circrna_plots:
+  enabled: false
+
+circtools:
   enabled: true
-  repo_url: "https://github.com/Xinglab/rmats2sashimiplot.git"
-  ref: "v3.0.0"
-  # Optional GFF3 annotation for coordinate mode. If omitted, the workflow
-  # creates a GFF3 from reference.gtf.
-  # annotation_gff3: "resources/genomeIndex/annotation.gff3"
-  count_type: "JC"
-  fdr_cutoff: 0.05
-  pvalue_cutoff: 1.0
-  inc_diff_cutoff: 0.1
-  # 0 means plot all significant BSJs per method/comparison; use a positive
-  # number for quick runs.
-  max_events_per_comparison_type: 0
-  # Bases added to each side of the BSJ span for coordinate-mode sashimi plots.
-  bsj_flank: 250
-  min_counts: 0
-  exon_s: 1
-  intron_s: 5
-  # Automatically enlarge BSJ sashimi PDFs for wider loci, more groups/samples,
-  # or long BSJ labels. The configured width/height/font act as starting values.
-  auto_scale: true
-  font_size: 8
-  min_font_size: 6
-  fig_width: 8
-  # With auto_scale: false, 0 lets rmats2sashimiplot choose the default height.
-  fig_height: 0
-  min_fig_width: 8
-  max_fig_width: 18
-  min_fig_height: 4.5
-  max_fig_height: 12
-  fail_on_error: false
-  colors:
-    - "#4C78A8"
-    - "#F58518"
-    - "#54A24B"
-    - "#B279A2"
-    - "#E45756"
+
+  detect:
+    enabled: true
+    stranded: true
+    second_strand: false
+    filter: true
+    # Remove circRNA candidates on the mitochondrial chromosome (-M).
+    remove_chrM: true
+    # Filter candidates that span more than one gene (-fg).
+    filter_by_gene: true
+    # Count host gene expression from the sorted BAMs (-G + -A + -B). This
+    # gives a biologically meaningful LinearCount. Recommended on.
+    host_gene: true
+    # Optional repeats GTF for filtering circRNAs in repetitive regions (-R).
+    # Leave empty to skip, or point at a UCSC-table-browser repeats GTF, e.g.:
+    # repeats_gtf: "/projects/cell-surface/circRNA/genomeIndex/repeats_combined.gtf"
+    repeats_gtf: ""
+    # -Nr count_threshold replicate_threshold. With 3 replicates per group,
+    # replicate_threshold must be <= 3 or every circRNA gets filtered out.
+    count_threshold: 2
+    replicate_threshold: 3
+
+  circtest:
+    enabled: true
+    max_fdr: 0.05
+    percentage: 0.01
+    filter_sample: 3
+    filter_count: 5
+    max_plots: 50
+
+  primex:
+    enabled: false
+
+  quickcheck:
+    enabled: true

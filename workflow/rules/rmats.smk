@@ -66,10 +66,21 @@ rule fetch_rmats_turbo:
         fi
 
         if [ ! -e "$repo_dir/.rmats_build_complete" ]; then
-          echo "Building rMATS-turbo with ./build_rmats {params.build_args}" >> "{log}"
+          echo "Building rMATS-turbo with bash ./build_rmats {params.build_args}" >> "{log}"
           repo_dir_abs=$(cd "$repo_dir" && pwd)
           cd "$repo_dir_abs"
-          ./build_rmats {params.build_args} >> "$log_abs" 2>&1
+          # Upstream rMATS-turbo ships build scripts with CRLF line endings on
+          # some clones, which makes the kernel reject the shebang
+          # ("/bin/bash^M: bad interpreter"). Strip carriage returns from the
+          # build/helper shell scripts, then invoke through bash explicitly so
+          # a corrupted shebang cannot break the build.
+          for _f in build_rmats build_rmats.sh test_rmats setup_environment.sh; do
+            if [ -f "$_f" ]; then
+              sed -i 's/\r$//' "$_f" >> "$log_abs" 2>&1 || true
+            fi
+          done
+          find . -type f -name "*.sh" -exec sed -i 's/\r$//' {{}} + >> "$log_abs" 2>&1 || true
+          bash ./build_rmats {params.build_args} >> "$log_abs" 2>&1
           touch "$repo_dir_abs/.rmats_build_complete"
           cd "$workdir_abs"
         fi
@@ -80,8 +91,6 @@ rule fetch_rmats_turbo:
 
 
 rule fetch_rmats2sashimiplot:
-    input:
-        bsj_arc_patch="workflow/rules/scripts/rmats2sashimiplot_bsj_below.patch"
     output:
         script=RMATS2SASHIMI_SCRIPT,
         ready=RMATS2SASHIMI_READY
@@ -98,7 +107,6 @@ rule fetch_rmats2sashimiplot:
         log_dir=$(dirname "{log}")
         repo_dir=$(dirname "{output.ready}")
         repo_parent=$(dirname "$repo_dir")
-        patch_file_abs=$(realpath "{input.bsj_arc_patch}")
         mkdir -p "$log_dir" "$repo_parent"
 
         if [ -z "$repo_dir" ] || [ "$repo_dir" = "." ] || [ "$repo_dir" = "$(dirname "$repo_dir")" ]; then
@@ -141,15 +149,6 @@ rule fetch_rmats2sashimiplot:
 
         echo "Converting bundled rmats2sashimiplot/MISO source for Python 3 compatibility" >> "{log}"
         python -m lib2to3 -w -n "$repo_dir/src/rmats2sashimiplot" "$repo_dir/src/MISO" >> "{log}" 2>&1
-        echo "Applying circRNA_smk BSJ-below junction rendering patch" >> "{log}"
-        if patch --dry-run -N -p1 -d "$repo_dir" < "$patch_file_abs" >> "{log}" 2>&1; then
-          patch -N -p1 -d "$repo_dir" < "$patch_file_abs" >> "{log}" 2>&1
-        elif patch --dry-run -R -p1 -d "$repo_dir" < "$patch_file_abs" >> "{log}" 2>&1; then
-          echo "BSJ-below rendering patch was already applied." >> "{log}"
-        else
-          echo "Could not apply BSJ-below rendering patch to rmats2sashimiplot." >> "{log}"
-          exit 1
-        fi
 
         test -s "{output.script}" || (echo "Missing rmats2sashimiplot.py after checkout: {output.script}" >> "{log}"; exit 1)
         touch "{output.ready}"
@@ -404,9 +403,9 @@ rule rmats2sashimi_plot_bsj_events:
         script=RMATS2SASHIMI_SCRIPT,
         ready=RMATS2SASHIMI_READY,
         result=bsj_sashimi_result_path,
-        ciri3=bsj_sashimi_annotation_path,
-        bsj_matrix=bsj_sashimi_bsj_matrix_path,
-        fsj_matrix=bsj_sashimi_fsj_matrix_path,
+        ciri3=f"{OUTDIR}/ciri3/all_samples.ciri3",
+        bsj_matrix=f"{OUTDIR}/ciri3/all_samples.ciri3.BSJ_Matrix",
+        fsj_matrix=f"{OUTDIR}/ciri3/all_samples.ciri3.FSJ_Matrix",
         gff3=SASHIMI_GFF3,
         b1=f"{OUTDIR}/rmats/sashimi/bsj/inputs/b1.txt",
         b2=f"{OUTDIR}/rmats/sashimi/bsj/inputs/b2.txt",
@@ -421,7 +420,7 @@ rule rmats2sashimi_plot_bsj_events:
         bsj_only_plots=directory(f"{OUTDIR}/rmats/sashimi/bsj/{{method}}/{{comparison}}/plots_bsj_only")
     wildcard_constraints:
         method=BSJ_SASHIMI_METHOD_REGEX,
-        comparison=DEG_COMPARISON_REGEX
+        comparison=CIRI3_DE_COMPARISON_REGEX
     params:
         outdir=lambda wc: f"{OUTDIR}/rmats/sashimi/bsj/{wc.method}/{wc.comparison}",
         padj_cutoff=DEG_PADJ_CUTOFF,
@@ -444,8 +443,7 @@ rule rmats2sashimi_plot_bsj_events:
         label_b2="other_groups",
         colors=SASHIMI_COLORS,
         fail_on_error=SASHIMI_FAIL_ON_ERROR,
-        extra_args=SASHIMI_EXTRA_ARGS,
-        source_name=bsj_sashimi_source_name
+        extra_args=SASHIMI_EXTRA_ARGS
     log:
         "logs/rmats/sashimi/bsj/{method}.{comparison}.log"
     threads: int(config["threads"].get("sashimi", 1))

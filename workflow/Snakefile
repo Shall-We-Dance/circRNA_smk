@@ -5,11 +5,15 @@ include: "rules/qc_fastp.smk"
 include: "rules/align_star.smk"
 include: "rules/featurecount.smk"
 include: "rules/ciri3.smk"
-include: "rules/dcc.smk"
 include: "rules/motif.smk"
 include: "rules/splicing_stats.smk"
 include: "rules/rmats.smk"
 include: "rules/deg.smk"
+include: "rules/circrna_plots.smk"
+include: "rules/normalize_bsj.smk"
+include: "rules/normalize_linear.smk"
+include: "rules/circtools.smk"
+
 
 rule all:
     input:
@@ -29,22 +33,11 @@ rule all:
         f"{OUTDIR}/ciri3/all_samples.ciri3",
         f"{OUTDIR}/ciri3/all_samples.ciri3.BSJ_Matrix",
         f"{OUTDIR}/ciri3/all_samples.ciri3.FSJ_Matrix",
-        *(
-            [
-                f"{DCC_RAW_OUTDIR}/CircRNACount",
-                f"{DCC_RAW_OUTDIR}/CircCoordinates",
-                f"{DCC_RAW_OUTDIR}/LinearCount",
-                f"{DCC_RAW_OUTDIR}/CircSkipJunctions",
-                f"{DCC_OUTDIR}/all_samples.dcc",
-                f"{DCC_OUTDIR}/all_samples.dcc.BSJ_Matrix",
-                f"{DCC_OUTDIR}/all_samples.dcc.FSJ_Matrix",
-                *expand(f"{DCC_OUTDIR}/per_sample/{{sample}}.dcc", sample=SAMPLES),
-                *expand(f"{DCC_OUTDIR}/per_sample/{{sample}}.dcc.BSJ_Matrix", sample=SAMPLES),
-                *expand(f"{DCC_OUTDIR}/per_sample/{{sample}}.dcc.FSJ_Matrix", sample=SAMPLES),
-            ]
-            if DCC_ENABLED
-            else []
-        ),
+        f"{OUTDIR}/ciri3/all_samples.ciri3.BSJ_Matrix.CPM_uniqueMapped.tsv",
+        f"{OUTDIR}/ciri3/all_samples.ciri3.FSJ_Matrix.CPM_uniqueMapped.tsv",
+        f"{OUTDIR}/featurecount/totalRNA.counts.cleaned.tsv",
+        f"{OUTDIR}/featurecount/totalRNA.counts.CPM_uniqueMapped.tsv",
+        
 
         # splicing summaries
         *expand(f"{OUTDIR}/splicing/{{sample}}/circ_splice_sites.tsv", sample=SAMPLES),
@@ -83,27 +76,6 @@ rule all:
             if MOTIF_ENABLED
             else []
         ),
-        *(
-            [
-                *expand(f"{DCC_OUTDIR}/motif/{{sample}}/bsj_sites.tsv", sample=SAMPLES),
-                *expand(
-                    f"{DCC_OUTDIR}/motif/{{sample}}/bsj_motif_summary.tsv",
-                    sample=SAMPLES,
-                ),
-                *expand(
-                    f"{DCC_OUTDIR}/motif/{{sample}}/homer/knownResults.txt",
-                    sample=SAMPLES,
-                ),
-                f"{DCC_OUTDIR}/motif/all_samples_site_stats.tsv",
-                f"{DCC_OUTDIR}/motif/all_samples_known_motif_summary.tsv",
-                f"{DCC_OUTDIR}/motif/all_samples_homer_summary.tsv",
-                f"{DCC_OUTDIR}/motif/all_samples_top_known_motifs.tsv",
-                f"{DCC_OUTDIR}/motif/all_samples_overview.png",
-                f"{DCC_OUTDIR}/motif/all_samples_known_motif_heatmap.png",
-            ]
-            if DCC_MOTIF_ENABLED
-            else []
-        ),
 
         # summary QC
         f"{OUTDIR}/qc/multiqc/multiqc_report.html",
@@ -138,68 +110,6 @@ rule all:
                 for comparison in DEG_COMPARISON_NAMES
             ]
             if DEG_RUN_DESEQ2
-            else []
-        ),
-        *(
-            [
-                f"{DCC_DEG_OUTDIR}/sample_metadata.tsv",
-                f"{DCC_DEG_OUTDIR}/all_groups/deseq2_results.tsv",
-                f"{DCC_DEG_OUTDIR}/all_groups/heatmap_top50.pdf",
-                f"{DCC_DEG_OUTDIR}/all_groups/pca.pdf",
-                f"{DCC_DEG_OUTDIR}/all_groups/vst_counts.tsv",
-            ]
-            + [
-                f"{DCC_DEG_OUTDIR}/pairwise/{comparison}/deseq2_results.tsv"
-                for comparison in DCC_DEG_COMPARISON_NAMES
-            ]
-            + [
-                f"{DCC_DEG_OUTDIR}/pairwise/{comparison}/volcano.pdf"
-                for comparison in DCC_DEG_COMPARISON_NAMES
-            ]
-            + [
-                f"{DCC_DEG_OUTDIR}/pairwise/{comparison}/volcano_labeled.pdf"
-                for comparison in DCC_DEG_COMPARISON_NAMES
-            ]
-            + [
-                f"{DCC_DEG_OUTDIR}/pairwise/{comparison}/heatmap_top50.pdf"
-                for comparison in DCC_DEG_COMPARISON_NAMES
-            ]
-            + [
-                f"{DCC_DEG_OUTDIR}/pairwise/{comparison}/pca.pdf"
-                for comparison in DCC_DEG_COMPARISON_NAMES
-            ]
-            if DCC_DEG_RUN_DESEQ2
-            else []
-        ),
-        *(
-            [
-                f"{DCC_CIRCTEST_OUTDIR}/all_groups/circtest_results.tsv",
-                f"{DCC_CIRCTEST_OUTDIR}/all_groups/circtest_summary.tsv",
-                f"{DCC_CIRCTEST_OUTDIR}/all_groups/filtered_circ_counts.tsv",
-                f"{DCC_CIRCTEST_OUTDIR}/all_groups/filtered_linear_counts.tsv",
-                f"{DCC_CIRCTEST_OUTDIR}/all_groups/ratio_plots.pdf",
-            ]
-            + [
-                f"{DCC_CIRCTEST_OUTDIR}/pairwise/{comparison}/circtest_results.tsv"
-                for comparison in DCC_CIRCTEST_COMPARISON_NAMES
-            ]
-            + [
-                f"{DCC_CIRCTEST_OUTDIR}/pairwise/{comparison}/circtest_summary.tsv"
-                for comparison in DCC_CIRCTEST_COMPARISON_NAMES
-            ]
-            + [
-                f"{DCC_CIRCTEST_OUTDIR}/pairwise/{comparison}/filtered_circ_counts.tsv"
-                for comparison in DCC_CIRCTEST_COMPARISON_NAMES
-            ]
-            + [
-                f"{DCC_CIRCTEST_OUTDIR}/pairwise/{comparison}/filtered_linear_counts.tsv"
-                for comparison in DCC_CIRCTEST_COMPARISON_NAMES
-            ]
-            + [
-                f"{DCC_CIRCTEST_OUTDIR}/pairwise/{comparison}/ratio_plots.pdf"
-                for comparison in DCC_CIRCTEST_COMPARISON_NAMES
-            ]
-            if DCC_DEG_RUN_CIRCTEST
             else []
         ),
 
@@ -258,4 +168,73 @@ rule all:
             )
             if CIRI3_DE_ENABLED
             else []
-        )
+        ),
+
+        # rich circRNA plots (Parts 1+2+3 of the legacy combined script)
+        *(
+            [
+                f"{CIRCRNA_PLOTS_OUTDIR}/metadata/sample_metadata.tsv",
+                # per-comparison plots (one set per CIRI3 DE_BSJ comparison)
+                *[
+                    f"{CIRCRNA_PLOTS_OUTDIR}/comparisons/{comparison}/{stem}.{ext}"
+                    for comparison in CIRI3_DE_COMPARISON_NAMES
+                    for stem in [
+                        "MA_unlabeled", "MA_labeled",
+                        "volcano_unlabeled", "volcano_labeled",
+                    ]
+                    for ext in ["png", "pdf"]
+                ],
+                *[
+                    f"{CIRCRNA_PLOTS_OUTDIR}/comparisons/{comparison}/{name}.tsv"
+                    for comparison in CIRI3_DE_COMPARISON_NAMES
+                    for name in ["cleaned_result", "significant_candidates"]
+                ],
+                # dataset-wide normalization tables/plots
+                f"{CIRCRNA_PLOTS_OUTDIR}/dataset/normalization/sample_summary.tsv",
+                f"{CIRCRNA_PLOTS_OUTDIR}/dataset/normalization/BSJ_matrix_CPM.tsv",
+                f"{CIRCRNA_PLOTS_OUTDIR}/dataset/normalization/condition_summary.tsv",
+                *[
+                    f"{CIRCRNA_PLOTS_OUTDIR}/dataset/normalization/{stem}.{ext}"
+                    for stem in ["all_samples_barplot", "all_conditions_boxplot"]
+                    for ext in ["png", "pdf"]
+                ],
+                # dataset-wide heatmaps (all + top-N variable)
+                *[
+                    f"{CIRCRNA_PLOTS_OUTDIR}/dataset/heatmaps/all_circRNAs/{stem}.{ext}"
+                    for stem in ["absolute_CPM_heatmap", "zscore_heatmap"]
+                    for ext in ["png", "pdf"]
+                ],
+                f"{CIRCRNA_PLOTS_OUTDIR}/dataset/heatmaps/all_circRNAs/absolute_CPM_matrix.tsv",
+                f"{CIRCRNA_PLOTS_OUTDIR}/dataset/heatmaps/all_circRNAs/log2CPM_zscore_matrix.tsv",
+                *[
+                    f"{CIRCRNA_PLOTS_OUTDIR}/dataset/heatmaps/top{n}_variable/{stem}.{ext}"
+                    for n in CIRCRNA_PLOTS_HEATMAP_TOP_N_VALUES
+                    for stem in ["absolute_CPM_heatmap", "zscore_heatmap"]
+                    for ext in ["png", "pdf"]
+                ],
+                *[
+                    f"{CIRCRNA_PLOTS_OUTDIR}/dataset/heatmaps/top{n}_variable/{name}.tsv"
+                    for n in CIRCRNA_PLOTS_HEATMAP_TOP_N_VALUES
+                    for name in ["absolute_CPM_matrix", "log2CPM_zscore_matrix"]
+                ],
+                # linear-counterpart plots (FSJ + totalRNA)
+                *[
+                    f"{CIRCRNA_PLOTS_OUTDIR}/linear_counterpart/{branch}/{stem}.{ext}"
+                    for branch in ["fsj", "totalRNA"]
+                    for stem in ["all_samples_barplot", "all_conditions_boxplot"]
+                    for ext in ["png", "pdf"]
+                ],
+            ]
+            if CIRCRNA_PLOTS_ENABLED
+            else []
+        ),
+
+        # circtools arm (https://github.com/jakobilab/circtools): install
+        # marker + sub-module-specific targets, each gated by its own switch
+        # in helpers.smk. Empty target lists when the arm is off so this
+        # block is a no-op for pre-circtools configs.
+        *CIRCTOOLS_INSTALL_TARGETS,
+        *CIRCTOOLS_DETECT_TARGETS,
+        *CIRCTOOLS_CIRCTEST_TARGETS,
+        *CIRCTOOLS_PRIMEX_TARGETS,
+        *CIRCTOOLS_QUICKCHECK_TARGETS,

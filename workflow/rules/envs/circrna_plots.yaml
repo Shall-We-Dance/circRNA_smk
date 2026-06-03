@@ -1,0 +1,7 @@
+name: circrna_plots
+channels: [conda-forge, bioconda]
+dependencies:
+  - r-base=4.3
+  - r-ggplot2
+  - r-ggrepel
+  - r-pheatmap

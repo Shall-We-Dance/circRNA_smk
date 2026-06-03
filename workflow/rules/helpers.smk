@@ -22,18 +22,6 @@ CIRI3_RATIO_RELATIVE_DEG_SCRIPT = os.path.join(
     "scripts",
     "compute_ciri3_ratio_relative_deg.R",
 )
-DCC_NORMALIZE_SCRIPT = os.path.join(
-    workflow.basedir,
-    "rules",
-    "scripts",
-    "normalize_dcc_outputs.py",
-)
-DCC_RUNNER_SCRIPT = os.path.join(
-    workflow.basedir,
-    "rules",
-    "scripts",
-    "run_dcc_with_htseq_patch.py",
-)
 
 
 def _sanitize_path_component(value):
@@ -91,6 +79,13 @@ def _numeric_config(cfg, key, default, cast, label, minimum=None, maximum=None, 
 ciri3_cfg = config.get("ciri3", {}) or {}
 if not isinstance(ciri3_cfg, dict):
     raise ValueError("Top-level ciri3 config must be a mapping.")
+
+# CIRI3 arm master switch. Defaults to True so existing configs that pre-date
+# circtools integration keep running the CIRI3 detection + downstream BSJ/FSJ
+# pipeline unchanged. Set ciri3.enabled: false to skip CIRI3 entirely when
+# running an exclusively-circtools-driven workflow (which then requires
+# circtools.detect.enabled to provide a canonical DCC).
+CIRI3_ENABLED = _get_bool(ciri3_cfg, "enabled", True)
 
 CIRI3_REPO_URL = ciri3_cfg.get("repo_url", "https://github.com/gyjames/CIRI3.git")
 CIRI3_REPO_REF = str(ciri3_cfg.get("ref", "v3.0.1"))
@@ -176,110 +171,6 @@ RMATS_PAIRED_STATS = _get_bool(rmats_cfg, "paired_stats", False)
 RMATS_STATOFF = _get_bool(rmats_cfg, "statoff", False)
 RMATS_INDIVIDUAL_COUNTS = _get_bool(rmats_cfg, "individual_counts", False)
 RMATS_EXTRA_ARGS = str(rmats_cfg.get("extra_args", "") or "")
-
-dcc_cfg = config.get("dcc", {}) or {}
-if not isinstance(dcc_cfg, dict):
-    raise ValueError("Top-level dcc config must be a mapping.")
-
-DCC_ENABLED = _get_bool(dcc_cfg, "enabled", False)
-DCC_OUTDIR = dcc_cfg.get("outdir", f"{OUTDIR}/dcc")
-DCC_RAW_OUTDIR = f"{DCC_OUTDIR}/raw"
-DCC_RUN_DESEQ2 = DCC_ENABLED and _get_bool(dcc_cfg, "run_deseq2", True)
-DCC_RUN_CIRCTEST = DCC_ENABLED and _get_bool(dcc_cfg, "run_circtest", True)
-DCC_RUN_MOTIF = DCC_ENABLED and _get_bool(dcc_cfg, "run_motif", True)
-DCC_RUN_SASHIMI = DCC_ENABLED and _get_bool(dcc_cfg, "run_sashimi", True)
-DCC_DEG_OUTDIR = dcc_cfg.get("deg_outdir", f"{OUTDIR}/deg/dcc_deseq2")
-DCC_CIRCTEST_OUTDIR = dcc_cfg.get("circtest_outdir", f"{OUTDIR}/deg/dcc_circtest")
-DCC_STRANDED = _get_bool(
-    dcc_cfg,
-    "stranded",
-    default=(RMATS_LIB_TYPE != "fr-unstranded"),
-)
-DCC_SECONDSTRAND = _get_bool(
-    dcc_cfg,
-    "secondstrand",
-    default=(RMATS_LIB_TYPE == "fr-secondstrand"),
-)
-DCC_FILTER = _get_bool(dcc_cfg, "filter", True)
-DCC_FILTER_CHRM = _get_bool(dcc_cfg, "filter_chrM", True)
-DCC_FILTER_BY_GENE = _get_bool(dcc_cfg, "filter_by_gene", True)
-DCC_KEEP_TEMP = _get_bool(dcc_cfg, "keep_temp", False)
-DCC_RUN_GENE_COUNTS = _get_bool(dcc_cfg, "run_gene_counts", True)
-DCC_REPEAT_GTF = str(dcc_cfg.get("repeat_gtf", "") or "")
-DCC_EXTRA_ARGS = str(dcc_cfg.get("extra_args", "") or "")
-DCC_END_TOL = _numeric_config(
-    dcc_cfg,
-    "end_tolerance",
-    5,
-    int,
-    "dcc.end_tolerance",
-    minimum=0,
-    maximum=9,
-)
-DCC_MIN_LENGTH = _numeric_config(
-    dcc_cfg,
-    "min_length",
-    30,
-    int,
-    "dcc.min_length",
-    minimum=1,
-)
-DCC_MAX_LENGTH = _numeric_config(
-    dcc_cfg,
-    "max_length",
-    1000000,
-    int,
-    "dcc.max_length",
-    minimum=DCC_MIN_LENGTH,
-)
-DCC_MIN_COUNT = _numeric_config(
-    dcc_cfg,
-    "min_count",
-    2,
-    int,
-    "dcc.min_count",
-    minimum=0,
-)
-DCC_MIN_REPLICATES = _numeric_config(
-    dcc_cfg,
-    "min_replicates",
-    2,
-    int,
-    "dcc.min_replicates",
-    minimum=1,
-)
-DCC_CIRCTEST_FILTER_SAMPLE = _numeric_config(
-    dcc_cfg,
-    "circtest_filter_sample",
-    DCC_MIN_REPLICATES,
-    int,
-    "dcc.circtest_filter_sample",
-    minimum=1,
-)
-DCC_CIRCTEST_FILTER_COUNT = _numeric_config(
-    dcc_cfg,
-    "circtest_filter_count",
-    5,
-    int,
-    "dcc.circtest_filter_count",
-    minimum=0,
-)
-DCC_CIRCTEST_PERCENTAGE = _numeric_config(
-    dcc_cfg,
-    "circtest_percentage",
-    0.01,
-    float,
-    "dcc.circtest_percentage",
-    minimum=0,
-)
-DCC_CIRCTEST_MAX_PLOTS = _numeric_config(
-    dcc_cfg,
-    "circtest_max_plots",
-    50,
-    int,
-    "dcc.circtest_max_plots",
-    minimum=0,
-)
 
 sashimi_cfg = config.get("sashimi", {}) or {}
 if not isinstance(sashimi_cfg, dict):
@@ -598,8 +489,6 @@ CIRI3_DE_RUN_BSJ = _get_bool(deg_cfg, "run_de_bsj", False)
 CIRI3_DE_RUN_RATIO = _get_bool(deg_cfg, "run_de_ratio", False)
 CIRI3_DE_RUN_RELATIVE = _get_bool(deg_cfg, "run_de_relative", False)
 CIRI3_DE_ENABLED = CIRI3_DE_RUN_BSJ or CIRI3_DE_RUN_RATIO or CIRI3_DE_RUN_RELATIVE
-DCC_DEG_RUN_DESEQ2 = DCC_RUN_DESEQ2
-DCC_DEG_RUN_CIRCTEST = DCC_RUN_CIRCTEST
 
 DEG_GROUPS = deg_cfg.get("groups", {}) or {}
 if DEG_GROUPS and not isinstance(DEG_GROUPS, dict):
@@ -628,35 +517,15 @@ CIRI3_DE_USE_FEATURECOUNTS = _get_bool(
 )
 
 RMATS_WORKFLOW_ACTIVE = RMATS_ENABLED or SASHIMI_ENABLED
-DEG_ACTIVE = (
-    DEG_RUN_DESEQ2
-    or CIRI3_DE_ENABLED
-    or DCC_DEG_RUN_DESEQ2
-    or DCC_DEG_RUN_CIRCTEST
-    or RMATS_WORKFLOW_ACTIVE
-)
-DCC_DEG_FOR_SASHIMI_ENABLED = DCC_RUN_SASHIMI and (
-    DCC_DEG_RUN_DESEQ2 or DCC_DEG_RUN_CIRCTEST
-)
+DEG_ACTIVE = DEG_RUN_DESEQ2 or CIRI3_DE_ENABLED or RMATS_WORKFLOW_ACTIVE
 
-if SASHIMI_ENABLED and not (
-    DEG_RUN_DESEQ2
-    or CIRI3_DE_ENABLED
-    or DCC_DEG_FOR_SASHIMI_ENABLED
-):
+if SASHIMI_ENABLED and not (DEG_RUN_DESEQ2 or CIRI3_DE_ENABLED):
     raise ValueError(
         "sashimi.enabled requires at least one BSJ differential source: "
-        "deg.run_deseq2, deg.run_de_bsj, deg.run_de_ratio, deg.run_de_relative, "
-        "dcc.run_deseq2, or dcc.run_circtest."
+        "deg.run_deseq2, deg.run_de_bsj, deg.run_de_ratio, or deg.run_de_relative."
     )
 
 if DEG_ACTIVE:
-    if DCC_DEG_RUN_CIRCTEST and not DCC_RUN_GENE_COUNTS:
-        raise ValueError(
-            "dcc.run_circtest requires dcc.run_gene_counts: true because CircTest "
-            "uses DCC LinearCount host-gene counts together with CircRNACount."
-        )
-
     if len(DEG_GROUP_NAMES) < 2:
         raise ValueError("DEG/CIRI3/rMATS analysis is enabled, but fewer than 2 deg.groups are configured.")
 
@@ -686,7 +555,6 @@ if DEG_ACTIVE:
             "Each sample can only belong to one DEG group. Duplicated samples: "
             + ", ".join(sorted(duplicated))
         )
-    DEG_SAMPLE_TO_GROUP = sample_to_group
 
     DEG_SELECTED_SAMPLES = [
         sample
@@ -705,7 +573,6 @@ if DEG_ACTIVE:
             "no alternate gene-expression source is currently implemented."
         )
 else:
-    DEG_SAMPLE_TO_GROUP = {}
     DEG_SELECTED_SAMPLES = []
 
 explicit_deg_comparisons = deg_cfg.get("comparisons")
@@ -720,10 +587,9 @@ else:
 
 DEG_COMPARISON_NAMES = list(DEG_COMPARISONS.keys())
 CIRI3_DE_COMPARISON_NAMES = DEG_COMPARISON_NAMES
-DCC_DEG_COMPARISON_NAMES = DEG_COMPARISON_NAMES if DCC_DEG_RUN_DESEQ2 else []
-DCC_CIRCTEST_COMPARISON_NAMES = DEG_COMPARISON_NAMES if DCC_DEG_RUN_CIRCTEST else []
-DEG_COMPARISON_REGEX = "|".join(re.escape(name) for name in DEG_COMPARISON_NAMES) or r"(?!)"
-CIRI3_DE_COMPARISON_REGEX = DEG_COMPARISON_REGEX
+CIRI3_DE_COMPARISON_REGEX = "|".join(
+    re.escape(name) for name in CIRI3_DE_COMPARISON_NAMES
+) or r"(?!)"
 RMATS_GROUP_NAMES = DEG_GROUP_NAMES if RMATS_ENABLED else []
 RMATS_GROUP_REGEX = "|".join(
     re.escape(name) for name in RMATS_GROUP_NAMES
@@ -738,8 +604,6 @@ BSJ_SASHIMI_METHODS = (
     + (["de_bsj"] if CIRI3_DE_RUN_BSJ else [])
     + (["de_ratio"] if CIRI3_DE_RUN_RATIO else [])
     + (["de_relative"] if CIRI3_DE_RUN_RELATIVE else [])
-    + (["dcc_deseq2"] if DCC_DEG_FOR_SASHIMI_ENABLED and DCC_DEG_RUN_DESEQ2 else [])
-    + (["dcc_circtest"] if DCC_DEG_FOR_SASHIMI_ENABLED and DCC_DEG_RUN_CIRCTEST else [])
 )
 BSJ_SASHIMI_METHOD_REGEX = "|".join(
     re.escape(method) for method in BSJ_SASHIMI_METHODS
@@ -839,37 +703,9 @@ def sashimi_label_b2(wildcards):
 def bsj_sashimi_result_path(wildcards):
     if wildcards.method == "deseq2":
         return f"{OUTDIR}/deg/deseq2/pairwise/{wildcards.comparison}/deseq2_results.tsv"
-    if wildcards.method == "dcc_deseq2":
-        return f"{DCC_DEG_OUTDIR}/pairwise/{wildcards.comparison}/deseq2_results.tsv"
-    if wildcards.method == "dcc_circtest":
-        return f"{DCC_CIRCTEST_OUTDIR}/pairwise/{wildcards.comparison}/circtest_results.tsv"
     if wildcards.method in {"de_bsj", "de_ratio", "de_relative"}:
         return f"{CIRI3_DE_OUTDIR}/{wildcards.comparison}/{wildcards.method}/result.txt"
     raise ValueError(f"Unsupported BSJ sashimi method: {wildcards.method}")
-
-
-def bsj_sashimi_annotation_path(wildcards):
-    if wildcards.method.startswith("dcc_"):
-        return f"{DCC_OUTDIR}/all_samples.dcc"
-    return f"{OUTDIR}/ciri3/all_samples.ciri3"
-
-
-def bsj_sashimi_bsj_matrix_path(wildcards):
-    if wildcards.method.startswith("dcc_"):
-        return f"{DCC_OUTDIR}/all_samples.dcc.BSJ_Matrix"
-    return f"{OUTDIR}/ciri3/all_samples.ciri3.BSJ_Matrix"
-
-
-def bsj_sashimi_fsj_matrix_path(wildcards):
-    if wildcards.method.startswith("dcc_"):
-        return f"{DCC_OUTDIR}/all_samples.dcc.FSJ_Matrix"
-    return f"{OUTDIR}/ciri3/all_samples.ciri3.FSJ_Matrix"
-
-
-def bsj_sashimi_source_name(wildcards):
-    if wildcards.method.startswith("dcc_"):
-        return "DCC"
-    return "CIRI3"
 
 
 RMATS_EVENT_TARGETS = (
@@ -910,7 +746,6 @@ CIRI3_DE_ENABLED_METHODS = (
 
 motif_cfg = config.get("motif", {})
 MOTIF_ENABLED = _as_bool(motif_cfg.get("enabled", True), default=True)
-DCC_MOTIF_ENABLED = DCC_RUN_MOTIF and MOTIF_ENABLED
 
 if DEG_ACTIVE and not DEG_COMPARISON_NAMES:
     raise ValueError("DEG/CIRI3/rMATS analysis is enabled, but no comparisons could be generated.")
@@ -958,3 +793,543 @@ def ciri3_per_sample_result_paths(comparison):
         f"{OUTDIR}/ciri3/per_sample/{sample}.ciri3"
         for sample in ciri3_de_all_samples(comparison)
     ]
+
+# ---------------------------------------------------------------------------
+# circrna_plots: rich CIRI3 DE_BSJ plots + dataset-wide BSJ summaries.
+# ---------------------------------------------------------------------------
+circrna_plots_cfg = config.get("circrna_plots", {}) or {}
+if not isinstance(circrna_plots_cfg, dict):
+    raise ValueError("Top-level circrna_plots config must be a mapping.")
+
+CIRCRNA_PLOTS_ENABLED = _get_bool(circrna_plots_cfg, "enabled", False)
+
+if CIRCRNA_PLOTS_ENABLED:
+    if not CIRI3_DE_RUN_BSJ:
+        raise ValueError(
+            "circrna_plots.enabled requires deg.run_de_bsj: true (CIRI3 DE_BSJ "
+            "must produce result.txt + infor.tsv per comparison)."
+        )
+
+    CIRCRNA_PLOTS_REVERSE_LFC = _get_bool(
+        circrna_plots_cfg, "reverse_ciri3_logfc_direction", True
+    )
+    CIRCRNA_PLOTS_LABEL_TOP_N = _numeric_config(
+        circrna_plots_cfg, "label_top_n", 15, int,
+        "circrna_plots.label_top_n", minimum=0,
+    )
+    CIRCRNA_PLOTS_FDR_FLOOR = _numeric_config(
+        circrna_plots_cfg, "fdr_floor_for_plot", 1e-300, float,
+        "circrna_plots.fdr_floor_for_plot", minimum=0, inclusive_min=False,
+    )
+    CIRCRNA_PLOTS_PER_MILLION = _numeric_config(
+        circrna_plots_cfg, "per_million", 1e6, float,
+        "circrna_plots.per_million", minimum=0, inclusive_min=False,
+    )
+
+    raw_top_n = circrna_plots_cfg.get("heatmap_top_n_values", [50, 25])
+    if not isinstance(raw_top_n, (list, tuple)) or len(raw_top_n) == 0:
+        raise ValueError("circrna_plots.heatmap_top_n_values must be a non-empty list.")
+    parsed_top_n = []
+    for value in raw_top_n:
+        if isinstance(value, bool):
+            raise ValueError("circrna_plots.heatmap_top_n_values must be a list of positive integers.")
+        try:
+            n = int(value)
+        except (TypeError, ValueError):
+            raise ValueError("circrna_plots.heatmap_top_n_values must be a list of positive integers.")
+        if n <= 0:
+            raise ValueError("circrna_plots.heatmap_top_n_values entries must be > 0.")
+        parsed_top_n.append(n)
+    if len(set(parsed_top_n)) != len(parsed_top_n):
+        raise ValueError("circrna_plots.heatmap_top_n_values must not contain duplicates.")
+    CIRCRNA_PLOTS_HEATMAP_TOP_N_VALUES = parsed_top_n
+
+    CIRCRNA_PLOTS_HEATMAP_CLUSTER_ROWS = _get_bool(circrna_plots_cfg, "heatmap_cluster_rows", True)
+    CIRCRNA_PLOTS_HEATMAP_CLUSTER_COLS = _get_bool(circrna_plots_cfg, "heatmap_cluster_cols", False)
+    CIRCRNA_PLOTS_HEATMAP_SHOW_ROWNAMES_ALL = _get_bool(
+        circrna_plots_cfg, "heatmap_show_rownames_all", False
+    )
+    CIRCRNA_PLOTS_HEATMAP_SHOW_ROWNAMES_TOP = _get_bool(
+        circrna_plots_cfg, "heatmap_show_rownames_top", True
+    )
+    CIRCRNA_PLOTS_HEATMAP_USE_LOG_COLORMAP = _get_bool(
+        circrna_plots_cfg, "heatmap_absolute_use_log_for_colormap", False
+    )
+    CIRCRNA_PLOTS_HEATMAP_CLIP_Q = _numeric_config(
+        circrna_plots_cfg, "heatmap_absolute_upper_clip_quantile", 0.99, float,
+        "circrna_plots.heatmap_absolute_upper_clip_quantile",
+        minimum=0, maximum=1, inclusive_min=False,
+    )
+    CIRCRNA_PLOTS_HEATMAP_LOG_PSEUDOCOUNT = _numeric_config(
+        circrna_plots_cfg, "heatmap_log_pseudocount", 1, float,
+        "circrna_plots.heatmap_log_pseudocount", minimum=0,
+    )
+    CIRCRNA_PLOTS_HEATMAP_ZSCORE_BREAKS = _numeric_config(
+        circrna_plots_cfg, "heatmap_zscore_breaks_limit", 3, float,
+        "circrna_plots.heatmap_zscore_breaks_limit", minimum=0, inclusive_min=False,
+    )
+
+    # Condition order is the order of deg.groups keys (preserved insertion order).
+    CIRCRNA_PLOTS_CONDITION_ORDER = list(DEG_GROUP_NAMES)
+
+    # Auto-pick colors from a Tableau-10-like default palette in DEG_GROUPS order,
+    # then allow user override via circrna_plots.condition_colors.
+    _CIRCRNA_PLOTS_DEFAULT_PALETTE = [
+        "#1F77B4", "#FF7F0E", "#2CA02C", "#D62728", "#9467BD",
+        "#8C564B", "#E377C2", "#7F7F7F", "#BCBD22", "#17BECF",
+    ]
+    _default_colors = {
+        name: _CIRCRNA_PLOTS_DEFAULT_PALETTE[i % len(_CIRCRNA_PLOTS_DEFAULT_PALETTE)]
+        for i, name in enumerate(CIRCRNA_PLOTS_CONDITION_ORDER)
+    }
+    _color_overrides = circrna_plots_cfg.get("condition_colors") or {}
+    if not isinstance(_color_overrides, dict):
+        raise ValueError(
+            "circrna_plots.condition_colors must be a mapping of group name -> hex color."
+        )
+    unknown_color_groups = sorted(set(_color_overrides) - set(CIRCRNA_PLOTS_CONDITION_ORDER))
+    if unknown_color_groups:
+        raise ValueError(
+            "circrna_plots.condition_colors references unknown deg.groups: "
+            + ", ".join(unknown_color_groups)
+        )
+    CIRCRNA_PLOTS_CONDITION_COLORS_RESOLVED = {
+        name: str(_color_overrides.get(name, _default_colors[name]))
+        for name in CIRCRNA_PLOTS_CONDITION_ORDER
+    }
+
+    CIRCRNA_PLOTS_SAMPLES = list(DEG_SELECTED_SAMPLES)
+    CIRCRNA_PLOTS_OUTDIR = f"{OUTDIR}/circrna_plots"
+else:
+    CIRCRNA_PLOTS_REVERSE_LFC = False
+    CIRCRNA_PLOTS_LABEL_TOP_N = 15
+    CIRCRNA_PLOTS_FDR_FLOOR = 1e-300
+    CIRCRNA_PLOTS_PER_MILLION = 1e6
+    CIRCRNA_PLOTS_HEATMAP_TOP_N_VALUES = []
+    CIRCRNA_PLOTS_HEATMAP_CLUSTER_ROWS = True
+    CIRCRNA_PLOTS_HEATMAP_CLUSTER_COLS = False
+    CIRCRNA_PLOTS_HEATMAP_SHOW_ROWNAMES_ALL = False
+    CIRCRNA_PLOTS_HEATMAP_SHOW_ROWNAMES_TOP = True
+    CIRCRNA_PLOTS_HEATMAP_USE_LOG_COLORMAP = False
+    CIRCRNA_PLOTS_HEATMAP_CLIP_Q = 0.99
+    CIRCRNA_PLOTS_HEATMAP_LOG_PSEUDOCOUNT = 1
+    CIRCRNA_PLOTS_HEATMAP_ZSCORE_BREAKS = 3
+    CIRCRNA_PLOTS_CONDITION_ORDER = []
+    CIRCRNA_PLOTS_CONDITION_COLORS_RESOLVED = {}
+    CIRCRNA_PLOTS_SAMPLES = []
+    CIRCRNA_PLOTS_OUTDIR = f"{OUTDIR}/circrna_plots"
+
+# ---------------------------------------------------------------------------
+# circtools integration (https://github.com/jakobilab/circtools).
+#
+# All circtools state is parsed here so circtools.smk only references already-
+# resolved constants and helper functions. The arm has four sub-modules
+# (detect / circtest / primex / quickcheck), each gated by its own enable
+# switch under the top-level `circtools:` config block; comparisons follow
+# the same explicit-or-auto-from-groups pattern used by `deg.comparisons`.
+# ---------------------------------------------------------------------------
+circtools_cfg = config.get("circtools", {}) or {}
+if not isinstance(circtools_cfg, dict):
+    raise ValueError("Top-level circtools config must be a mapping.")
+
+CIRCTOOLS_ENABLED = _get_bool(circtools_cfg, "enabled", False)
+
+
+def _circtools_sub_cfg(key):
+    sub = circtools_cfg.get(key, {}) or {}
+    if not isinstance(sub, dict):
+        raise ValueError(f"circtools.{key} must be a mapping.")
+    return sub
+
+
+_circtools_detect_cfg = _circtools_sub_cfg("detect")
+_circtools_circtest_cfg = _circtools_sub_cfg("circtest")
+_circtools_primex_cfg = _circtools_sub_cfg("primex")
+_circtools_quickcheck_cfg = _circtools_sub_cfg("quickcheck")
+_circtools_star_cfg = _circtools_sub_cfg("star")
+
+CIRCTOOLS_DETECT_ENABLED = (
+    CIRCTOOLS_ENABLED and _get_bool(_circtools_detect_cfg, "enabled", False)
+)
+CIRCTOOLS_CIRCTEST_ENABLED = (
+    CIRCTOOLS_ENABLED and _get_bool(_circtools_circtest_cfg, "enabled", False)
+)
+CIRCTOOLS_PRIMEX_ENABLED = (
+    CIRCTOOLS_ENABLED and _get_bool(_circtools_primex_cfg, "enabled", False)
+)
+CIRCTOOLS_QUICKCHECK_ENABLED = (
+    CIRCTOOLS_ENABLED and _get_bool(_circtools_quickcheck_cfg, "enabled", False)
+)
+
+# Convenience: any "downstream" circtools sub-module (i.e. needing a canonical
+# DCC). detect itself is what PRODUCES the DCC in the detect path so it's not
+# a downstream consumer; the three below are.
+_CIRCTOOLS_DOWNSTREAM_ENABLED = (
+    CIRCTOOLS_CIRCTEST_ENABLED
+    or CIRCTOOLS_PRIMEX_ENABLED
+    or CIRCTOOLS_QUICKCHECK_ENABLED
+)
+
+# Sub-module sanity: if the arm is on, at least one sub-module must be on too.
+if CIRCTOOLS_ENABLED and not (
+    CIRCTOOLS_DETECT_ENABLED or _CIRCTOOLS_DOWNSTREAM_ENABLED
+):
+    raise ValueError(
+        "circtools.enabled is true but no sub-module is enabled. Set at least "
+        "one of circtools.detect.enabled / circtools.circtest.enabled / "
+        "circtools.primex.enabled / circtools.quickcheck.enabled."
+    )
+
+# Canonical DCC source: any downstream sub-module needs ONE of detect or
+# ciri3 to produce a canonical DCC. The detect arm produces a real DCC;
+# without it, we synthesize a DCC from CIRI3 BSJ/FSJ matrices, which means
+# ciri3 must be enabled.
+if _CIRCTOOLS_DOWNSTREAM_ENABLED and not (CIRCTOOLS_DETECT_ENABLED or CIRI3_ENABLED):
+    raise ValueError(
+        "circtools downstream sub-modules (circtest/primex/quickcheck) require "
+        "either circtools.detect.enabled: true OR ciri3.enabled: true to "
+        "provide a canonical DCC."
+    )
+
+CIRCTOOLS_INSTALL_MARKER = f"{OUTDIR}/resources/circtools/.install_ready"
+
+# Samples used by circtools. Defaults to DEG_SELECTED_SAMPLES (those configured
+# in deg.groups) so the per-comparison logic always has a well-defined column
+# universe; falls back to all top-level samples when no DEG groups are set.
+# This is deliberately a subset of the master SAMPLES list -- circtools detect
+# / DCC synthesis runs only over these.
+if DEG_SELECTED_SAMPLES:
+    CIRCTOOLS_SAMPLES = list(DEG_SELECTED_SAMPLES)
+else:
+    CIRCTOOLS_SAMPLES = list(SAMPLES)
+
+# ---------------------------------------------------------------------------
+# STAR knobs (only used when detect arm is on). Defaults match circtools'
+# detect documentation and happen to match the existing CIRI3 STAR rule by
+# coincidence, but we keep them independent so circtools' STAR-rule evolution
+# does not leak into the CIRI3 path.
+# ---------------------------------------------------------------------------
+CIRCTOOLS_STAR_CHIM_SEGMENT_MIN = _numeric_config(
+    _circtools_star_cfg, "chim_segment_min", 15, int,
+    "circtools.star.chim_segment_min", minimum=1,
+)
+CIRCTOOLS_STAR_CHIM_SCORE_MIN = _numeric_config(
+    _circtools_star_cfg, "chim_score_min", 15, int,
+    "circtools.star.chim_score_min", minimum=0,
+)
+CIRCTOOLS_STAR_CHIM_JUNCTION_OVERHANG_MIN = _numeric_config(
+    _circtools_star_cfg, "chim_junction_overhang_min", 15, int,
+    "circtools.star.chim_junction_overhang_min", minimum=1,
+)
+CIRCTOOLS_STAR_ALIGN_SJ_OVERHANG_MIN = _numeric_config(
+    _circtools_star_cfg, "align_sj_overhang_min", 15, int,
+    "circtools.star.align_sj_overhang_min", minimum=1,
+)
+CIRCTOOLS_STAR_OUT_FILTER_MULTIMAP_NMAX = _numeric_config(
+    _circtools_star_cfg, "out_filter_multimap_nmax", 20, int,
+    "circtools.star.out_filter_multimap_nmax", minimum=1,
+)
+CIRCTOOLS_STAR_OUT_FILTER_MISMATCH_NMAX = _numeric_config(
+    _circtools_star_cfg, "out_filter_mismatch_nmax", 2, int,
+    "circtools.star.out_filter_mismatch_nmax", minimum=0,
+)
+
+# ---------------------------------------------------------------------------
+# Detect knobs.
+# ---------------------------------------------------------------------------
+CIRCTOOLS_DETECT_STRANDED = _get_bool(_circtools_detect_cfg, "stranded", True)
+CIRCTOOLS_DETECT_SS = _get_bool(_circtools_detect_cfg, "second_strand", False)
+CIRCTOOLS_DETECT_FILTER = _get_bool(_circtools_detect_cfg, "filter", True)
+# -M: remove circRNA candidates on the mitochondrial chromosome.
+CIRCTOOLS_DETECT_CHRM = _get_bool(_circtools_detect_cfg, "remove_chrM", True)
+# -fg: also filter by gene annotation (a candidate may not span >1 gene).
+CIRCTOOLS_DETECT_FILTER_BY_GENE = _get_bool(
+    _circtools_detect_cfg, "filter_by_gene", True
+)
+# -G + -A + -B: count host gene expression from the sorted BAMs. This is what
+# produces a biologically meaningful LinearCount (otherwise LinearCount is
+# derived only from junction-spanning linear reads). Strongly recommended.
+CIRCTOOLS_DETECT_HOST_GENE = _get_bool(_circtools_detect_cfg, "host_gene", True)
+# -R: optional repeats GTF for filtering circRNAs in repetitive regions.
+# Empty string (default) means the flag is omitted.
+CIRCTOOLS_DETECT_REPEATS_GTF = str(
+    _circtools_detect_cfg.get("repeats_gtf", "") or ""
+)
+if CIRCTOOLS_DETECT_REPEATS_GTF and not os.path.isfile(CIRCTOOLS_DETECT_REPEATS_GTF):
+    raise ValueError(
+        f"circtools.detect.repeats_gtf is set to '{CIRCTOOLS_DETECT_REPEATS_GTF}' "
+        "but that file does not exist. Provide a valid GTF path or remove the "
+        "key to skip repeat-region filtering."
+    )
+CIRCTOOLS_DETECT_COUNT_THRESHOLD = _numeric_config(
+    _circtools_detect_cfg, "count_threshold", 2, int,
+    "circtools.detect.count_threshold", minimum=0,
+)
+# Replicate threshold default is 3 (not DCC's library default of 5): with the
+# typical 3-replicates-per-group design, a threshold of 5 can never be met and
+# would silently filter out every circRNA. Override in config if you have more.
+CIRCTOOLS_DETECT_REPLICATE_THRESHOLD = _numeric_config(
+    _circtools_detect_cfg, "replicate_threshold", 3, int,
+    "circtools.detect.replicate_threshold", minimum=0,
+)
+
+# ---------------------------------------------------------------------------
+# Circtest knobs.
+# ---------------------------------------------------------------------------
+CIRCTOOLS_CIRCTEST_MAX_FDR = _numeric_config(
+    _circtools_circtest_cfg, "max_fdr", 0.05, float,
+    "circtools.circtest.max_fdr",
+    minimum=0, maximum=1, inclusive_min=False, inclusive_max=False,
+)
+CIRCTOOLS_CIRCTEST_PERCENTAGE = _numeric_config(
+    _circtools_circtest_cfg, "percentage", 0.01, float,
+    "circtools.circtest.percentage",
+    minimum=0, maximum=1, inclusive_min=False, inclusive_max=True,
+)
+CIRCTOOLS_CIRCTEST_FILTER_SAMPLE = _numeric_config(
+    _circtools_circtest_cfg, "filter_sample", 3, int,
+    "circtools.circtest.filter_sample", minimum=1,
+)
+CIRCTOOLS_CIRCTEST_FILTER_COUNT = _numeric_config(
+    _circtools_circtest_cfg, "filter_count", 5, int,
+    "circtools.circtest.filter_count", minimum=0,
+)
+CIRCTOOLS_CIRCTEST_MAX_PLOTS = _numeric_config(
+    _circtools_circtest_cfg, "max_plots", 50, int,
+    "circtools.circtest.max_plots", minimum=0,
+)
+
+# Circtest comparisons. Explicit comparisons under circtools.circtest.comparisons
+# take precedence; otherwise we fall back to DEG_COMPARISONS (which itself was
+# derived from deg.comparisons or auto-generated from deg.groups). This keeps
+# the configured comparison universe consistent between the DEG arm and
+# circtools when the user wants them to match without duplicating config.
+_explicit_circtest_comparisons = _circtools_circtest_cfg.get("comparisons")
+
+if _CIRCTOOLS_DOWNSTREAM_ENABLED:
+    if _explicit_circtest_comparisons is not None:
+        if not DEG_GROUPS:
+            raise ValueError(
+                "circtools.circtest.comparisons referenced group names but "
+                "deg.groups is empty; populate deg.groups (which defines the "
+                "valid group->sample mapping for both DEG and circtools)."
+            )
+        CIRCTOOLS_CIRCTEST_COMPARISONS = _normalize_explicit_comparisons(
+            _explicit_circtest_comparisons, DEG_GROUPS
+        )
+    elif DEG_COMPARISONS:
+        # Inherit from the DEG arm (this is the common case).
+        CIRCTOOLS_CIRCTEST_COMPARISONS = dict(DEG_COMPARISONS)
+    elif DEG_GROUPS:
+        # DEG arm wasn't activated but groups are still defined; fall back to
+        # the same auto-pairwise convention used elsewhere.
+        CIRCTOOLS_CIRCTEST_COMPARISONS = _auto_comparisons_from_groups(DEG_GROUPS)
+    else:
+        raise ValueError(
+            "circtools downstream sub-modules need at least one comparison. "
+            "Set either circtools.circtest.comparisons or deg.groups."
+        )
+
+    # Validate sample membership: every case+control sample of every
+    # comparison must be in CIRCTOOLS_SAMPLES, otherwise the canonical DCC
+    # won't contain its column and the subset rule will fail late.
+    _circtools_sample_set = set(CIRCTOOLS_SAMPLES)
+    for _name, _comp in CIRCTOOLS_CIRCTEST_COMPARISONS.items():
+        _missing = sorted(
+            (set(_comp["case"]) | set(_comp["control"])) - _circtools_sample_set
+        )
+        if _missing:
+            raise ValueError(
+                f"circtools comparison '{_name}' references sample(s) not in "
+                f"CIRCTOOLS_SAMPLES: {', '.join(_missing)}. Ensure they appear "
+                "in deg.groups (or the explicit comparison's case/control list) "
+                "AND in the top-level samples mapping."
+            )
+        if len(_comp["case"]) < 2 or len(_comp["control"]) < 2:
+            raise ValueError(
+                f"circtools comparison '{_name}' must have at least 2 "
+                "replicates in both case and control; circtest's beta-binomial "
+                "ratio test is unstable with fewer."
+            )
+else:
+    CIRCTOOLS_CIRCTEST_COMPARISONS = {}
+
+CIRCTOOLS_CIRCTEST_COMPARISON_NAMES = list(CIRCTOOLS_CIRCTEST_COMPARISONS.keys())
+CIRCTOOLS_CIRCTEST_COMPARISON_REGEX = "|".join(
+    re.escape(name) for name in CIRCTOOLS_CIRCTEST_COMPARISON_NAMES
+) or r"(?!)"
+
+# ---------------------------------------------------------------------------
+# Primex knobs.
+# ---------------------------------------------------------------------------
+CIRCTOOLS_PRIMEX_TOP_N = _numeric_config(
+    _circtools_primex_cfg, "top_n", 25, int,
+    "circtools.primex.top_n", minimum=1,
+)
+_primex_size_raw = _circtools_primex_cfg.get("product_size", [80, 160])
+if (not isinstance(_primex_size_raw, (list, tuple))
+        or len(_primex_size_raw) != 2):
+    raise ValueError(
+        "circtools.primex.product_size must be a 2-element list [low, high]."
+    )
+try:
+    _primex_size_low = int(_primex_size_raw[0])
+    _primex_size_high = int(_primex_size_raw[1])
+except (TypeError, ValueError):
+    raise ValueError("circtools.primex.product_size values must be integers.")
+if _primex_size_low <= 0 or _primex_size_high <= _primex_size_low:
+    raise ValueError(
+        "circtools.primex.product_size must satisfy 0 < low < high."
+    )
+CIRCTOOLS_PRIMEX_PRODUCT_SIZE = [_primex_size_low, _primex_size_high]
+CIRCTOOLS_PRIMEX_NUM_PAIRS = _numeric_config(
+    _circtools_primex_cfg, "num_pairs", 5, int,
+    "circtools.primex.num_pairs", minimum=1,
+)
+CIRCTOOLS_PRIMEX_JUNCTION = str(_circtools_primex_cfg.get("junction", "n"))
+if CIRCTOOLS_PRIMEX_JUNCTION not in {"r", "n", "f"}:
+    raise ValueError(
+        "circtools.primex.junction must be one of: r (reverse primer on BSJ), "
+        "n (neither primer on BSJ; default), f (forward primer on BSJ)."
+    )
+CIRCTOOLS_PRIMEX_NO_BLAST = _get_bool(_circtools_primex_cfg, "no_blast", True)
+CIRCTOOLS_PRIMEX_ORGANISM = str(_circtools_primex_cfg.get("organism", "") or "")
+if CIRCTOOLS_PRIMEX_ORGANISM and CIRCTOOLS_PRIMEX_ORGANISM not in {"mm", "rn", "hs", "ss"}:
+    raise ValueError(
+        "circtools.primex.organism must be one of: mm (Mus musculus), "
+        "rn (Rattus norvegicus), hs (Homo sapiens), ss (Sus scrofa), or "
+        "empty (no BLAST; required for organisms primex doesn't bundle, "
+        "including Aedes aegypti)."
+    )
+CIRCTOOLS_PRIMEX_TITLE = str(_circtools_primex_cfg.get("title", "circtools_primex"))
+
+# ---------------------------------------------------------------------------
+# Canonical DCC source. Resolved from arm flags so circtools.smk rules can
+# depend on a single set of paths whether they came from real detect or
+# CIRI3-synthesized DCC.
+# ---------------------------------------------------------------------------
+if CIRCTOOLS_DETECT_ENABLED:
+    CIRCTOOLS_CANONICAL_DCC_DIR = f"{OUTDIR}/circtools/detect"
+else:
+    # Implicitly the ciri3-synthesis path (validated above to require CIRI3
+    # when no detect and any downstream is on; an unused canonical path is
+    # harmless when no downstream is enabled).
+    CIRCTOOLS_CANONICAL_DCC_DIR = f"{OUTDIR}/circtools/dcc_from_ciri3/dataset"
+
+CIRCTOOLS_CANONICAL_DCC_CIRC_COUNT = f"{CIRCTOOLS_CANONICAL_DCC_DIR}/CircRNACount"
+CIRCTOOLS_CANONICAL_DCC_CIRC_COORD = f"{CIRCTOOLS_CANONICAL_DCC_DIR}/CircCoordinates"
+CIRCTOOLS_CANONICAL_DCC_LINEAR_COUNT = f"{CIRCTOOLS_CANONICAL_DCC_DIR}/LinearCount"
+
+
+# ---------------------------------------------------------------------------
+# circtools helper functions (called from circtools.smk param lambdas).
+# ---------------------------------------------------------------------------
+def circtools_circtest_case_samples(comparison):
+    """Case samples for a circtools circtest comparison, in declared order."""
+    return list(CIRCTOOLS_CIRCTEST_COMPARISONS[comparison]["case"])
+
+
+def circtools_circtest_control_samples(comparison):
+    """Control samples for a circtools circtest comparison, in declared order."""
+    return list(CIRCTOOLS_CIRCTEST_COMPARISONS[comparison]["control"])
+
+
+def circtools_circtest_condition_names(comparison):
+    """(case_group, control_group) tuple for -l on circtest/quickcheck."""
+    comp = CIRCTOOLS_CIRCTEST_COMPARISONS[comparison]
+    return (comp["case_group"], comp["control_group"])
+
+
+def circtools_circtest_condition_columns(comparison):
+    """1-based DCC sample column indices for circtest's -c flag.
+
+    The per-comparison DCC subset has 3 metadata columns (Chr, Start, End)
+    followed by case-then-control sample columns (see circtools.smk:
+    circtools_dcc_subset rule). So the 1-based sample columns are simply
+    4, 5, ..., 3+N where N is the total case+control count. We list ALL of
+    them; the grouping is what tells circtest which is which.
+    """
+    n = (
+        len(circtools_circtest_case_samples(comparison))
+        + len(circtools_circtest_control_samples(comparison))
+    )
+    return ",".join(str(i) for i in range(4, 4 + n))
+
+
+def circtools_circtest_grouping(comparison):
+    """Comma-separated group ids for circtest's -g flag.
+
+    Group 1 = case (matches the first name in condition_names), group 2 =
+    control. Order MUST match circtools_circtest_condition_columns above and
+    the sample order baked into the per-comparison DCC subset.
+    """
+    case_n = len(circtools_circtest_case_samples(comparison))
+    control_n = len(circtools_circtest_control_samples(comparison))
+    return ",".join(["1"] * case_n + ["2"] * control_n)
+
+
+def circtools_circtest_num_replicates(comparison):
+    """`-r` for circtest. The wrapper expects a single replicate count, but
+    accepts imbalanced designs; using max(case, control) is the standard
+    fix-up the upstream README also recommends.
+    """
+    return max(
+        len(circtools_circtest_case_samples(comparison)),
+        len(circtools_circtest_control_samples(comparison)),
+    )
+
+
+def circtools_source_star_log(sample):
+    """Source Log.final.out path used by the quickcheck staging symlink rule.
+
+    When the circtools detect arm is on, we have a dedicated STAR alignment
+    that writes {sample}_Log.final.out under {OUTDIR}/circtools/star/{sample}/paired/.
+    Otherwise, we reuse the CIRI3 STAR tree under {OUTDIR}/star/, which
+    writes {sample}.Log.final.out (dot separator -- not directly compatible
+    with quickcheck's lookup, which is why we stage a symlink renamed to a
+    plain Log.final.out).
+    """
+    if CIRCTOOLS_DETECT_ENABLED:
+        return f"{OUTDIR}/circtools/star/{sample}/paired/{sample}_Log.final.out"
+    return f"{OUTDIR}/star/{sample}/{sample}.Log.final.out"
+
+
+# ---------------------------------------------------------------------------
+# Pre-computed target lists for the Snakefile's rule all.
+# ---------------------------------------------------------------------------
+CIRCTOOLS_DETECT_TARGETS = (
+    [
+        CIRCTOOLS_CANONICAL_DCC_CIRC_COUNT,
+        CIRCTOOLS_CANONICAL_DCC_CIRC_COORD,
+        CIRCTOOLS_CANONICAL_DCC_LINEAR_COUNT,
+    ]
+    if CIRCTOOLS_DETECT_ENABLED
+    else []
+)
+CIRCTOOLS_CIRCTEST_TARGETS = (
+    [
+        f"{OUTDIR}/circtools/circtest/{comparison}/circtest.{ext}"
+        for comparison in CIRCTOOLS_CIRCTEST_COMPARISON_NAMES
+        for ext in ("csv", "xlsx", "pdf")
+    ]
+    if CIRCTOOLS_CIRCTEST_ENABLED
+    else []
+)
+CIRCTOOLS_PRIMEX_TARGETS = (
+    [f"{OUTDIR}/circtools/primex/primex.done"]
+    if CIRCTOOLS_PRIMEX_ENABLED
+    else []
+)
+CIRCTOOLS_QUICKCHECK_TARGETS = (
+    [
+        f"{OUTDIR}/circtools/quickcheck/{comparison}/quickcheck.pdf"
+        for comparison in CIRCTOOLS_CIRCTEST_COMPARISON_NAMES
+    ]
+    if CIRCTOOLS_QUICKCHECK_ENABLED
+    else []
+)
+CIRCTOOLS_INSTALL_TARGETS = (
+    [CIRCTOOLS_INSTALL_MARKER]
+    if CIRCTOOLS_ENABLED
+    else []
+)

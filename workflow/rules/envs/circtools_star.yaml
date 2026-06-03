@@ -1,0 +1,10 @@
+name: circtools_star
+channels: [conda-forge, bioconda]
+dependencies:
+  # circtools detect / DCC needs STAR-style chimeric output. Any STAR >= 2.6.0c
+  # works with --chimOutType Junctions SeparateSAMold. The Stage 1 research
+  # confirmed only STAR 2.6.0a/b are broken; modern STAR is fine. We leave the
+  # version unpinned to match the existing star.yaml pattern, letting conda
+  # resolve a current STAR build.
+  - star
+  - samtools

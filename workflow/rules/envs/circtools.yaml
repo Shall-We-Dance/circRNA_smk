@@ -1,0 +1,48 @@
+name: circtools
+# Single env that supports all four enabled modules (detect, circtest, primex,
+# quickcheck). Key facts established from in-container validation:
+#   - circtest is PURE PYTHON in circtools 2.0.5 (no R needed despite docs hint).
+#   - quickcheck is PURE PYTHON but needs scikit-learn (for PCA).
+#   - detect (DCC backend) needs bedtools at runtime + the pysam/HTSeq stack.
+#   - primex is the only module that genuinely needs R + the bundled
+#     'primex' R package (in circtools/contrib/primex/) + several BioC/CRAN
+#     deps. We install the bundled primex package via R CMD INSTALL in the
+#     fetch_circtools rule so the env itself stays declarative.
+channels: [conda-forge, bioconda]
+dependencies:
+  - python=3.11
+  - pip
+  - gcc
+  - git
+  - make
+  # DCC + circtools shared runtime
+  - bedtools
+  - scikit-learn          # quickcheck PCA
+  - numpy
+  - scipy
+  - pandas
+  - statsmodels
+  - matplotlib
+  - seaborn
+  - biopython
+  - pysam
+  - htseq
+  - pybedtools
+  - openpyxl              # circtest .xlsx export
+  - numdifftools          # circtest beta-binomial Hessian computation
+  - primer3               # primex primer design backend (binary)
+  # R stack for primex (bundled circtools/contrib/primex needs these)
+  - r-base>=4.2
+  - r-devtools
+  - r-ggplot2
+  - r-magrittr
+  - r-dplyr
+  - r-formattable
+  - r-kableextra
+  - bioconductor-genomicranges
+  - bioconductor-bsgenome
+  - bioconductor-iranges
+  - bioconductor-s4vectors
+  - bioconductor-biostrings
+  - pip:
+      - circtools==2.0.5.post2

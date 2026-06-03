@@ -199,10 +199,9 @@ def scaled_plot_style(
 def bsj_signal_summary(event):
     if "bsj_total_bsj" not in event:
         return ""
-    source_name = str(event.get("source_name") or "CIRI3")
     return (
-        f"{source_name}_BSJ={format_count(event['bsj_total_bsj'])}, "
-        f"{source_name}_FSJ={format_count(event['bsj_total_fsj'])}, "
+        f"CIRI3_BSJ={format_count(event['bsj_total_bsj'])}, "
+        f"CIRI3_FSJ={format_count(event['bsj_total_fsj'])}, "
         f"JR={format_ratio(event['bsj_junction_ratio'])}, "
         f"matrix_row={event['bsj_matrix_row_found']}"
     )
@@ -554,7 +553,7 @@ def event_bam_header(source_bam, event, region_end, anchor):
     return header
 
 
-def write_ciri3_pseudo_junction_reads(out_bam, event, bsj_count, read_prefix, source_name):
+def write_ciri3_pseudo_junction_reads(out_bam, event, bsj_count, read_prefix):
     count = max(0, int(round(float(bsj_count))))
     if count <= 0:
         return 0
@@ -585,7 +584,7 @@ def write_ciri3_pseudo_junction_reads(out_bam, event, bsj_count, read_prefix, so
         aln.query_qualities = qualities
         aln.set_tag("NH", 1, value_type="i")
         aln.set_tag("XS", event.get("strand", "+"), value_type="A")
-        aln.set_tag("ZB", f"{source_name}_BSJ", value_type="Z")
+        aln.set_tag("ZB", "CIRI3_BSJ", value_type="Z")
         out_bam.write(aln)
     return count
 
@@ -600,7 +599,6 @@ def write_event_bam(
     region_end,
     include_real_reads,
     log_handle,
-    source_name,
 ):
     out_bam = Path(out_bam)
     out_bam.parent.mkdir(parents=True, exist_ok=True)
@@ -637,8 +635,7 @@ def write_event_bam(
             out,
             event,
             bsj_count,
-            f"{safe_name(sample)}_{safe_name(event['circRNA_ID'])}_{safe_name(source_name)}BSJ",
-            source_name,
+            f"{safe_name(sample)}_{safe_name(event['circRNA_ID'])}_CIRI3BSJ",
         )
 
     pysam.sort("-o", str(out_bam), str(unsorted_bam))
@@ -657,7 +654,7 @@ def write_rmats2sashimi_inputs(input_dir, sample_info, sample_to_bam):
     input_dir.mkdir(parents=True, exist_ok=True)
     group_names = list(sample_info["groups"])
     if len(group_names) < 2:
-        raise ValueError("BSJ MISO input generation requires at least two groups.")
+        raise ValueError("CIRI3 BSJ MISO input generation requires at least two groups.")
 
     first_group_samples = list(sample_info["group_to_samples"][group_names[0]])
     other_samples = [
@@ -705,10 +702,8 @@ def build_ciri3_miso_inputs(
     region_end,
     include_real_reads,
     log_handle,
-    source_name,
 ):
-    source_slug = safe_name(str(source_name).lower())
-    input_root = Path(plot_outdir) / f"{source_slug}_miso_inputs"
+    input_root = Path(plot_outdir) / "ciri3_miso_inputs"
     bam_root = input_root / "bams"
     sample_to_bam = {}
     bam_rows = []
@@ -725,7 +720,6 @@ def build_ciri3_miso_inputs(
             region_end,
             include_real_reads,
             log_handle,
-            source_name,
         )
         sample_to_bam[sample] = row["bam"]
         bam_rows.append(row)
@@ -734,16 +728,16 @@ def build_ciri3_miso_inputs(
     synthetic_reads = sum(row["synthetic_bsj_reads"] for row in bam_rows)
     copied_reads = sum(row["copied_reads"] for row in bam_rows)
     log_handle.write(
-        f"[{event_key}][{source_slug}_miso_inputs] mode="
-        f"{'real_plus_' + source_slug + '_bsj' if include_real_reads else source_slug + '_bsj_only'} "
+        f"[{event_key}][ciri3_miso_inputs] mode="
+        f"{'real_plus_ciri3_bsj' if include_real_reads else 'ciri3_bsj_only'} "
         f"synthetic_bsj_reads={synthetic_reads} copied_real_reads={copied_reads} "
         f"input_dir={input_root.resolve()}\n"
     )
     return {
         **input_files,
-        "bam_source": f"real_BAM_plus_{source_name}_BSJ_pseudo_reads"
+        "bam_source": "real_BAM_plus_CIRI3_BSJ_pseudo_reads"
         if include_real_reads
-        else f"{source_name}_BSJ_pseudo_reads",
+        else "CIRI3_BSJ_pseudo_reads",
         "synthetic_bsj_reads": synthetic_reads,
         "copied_real_reads": copied_reads,
         "input_dir": str(input_root.resolve()),
@@ -806,14 +800,12 @@ def run_ciri3_bsj_signal_plot(
     event_key,
     log_handle,
     plot_label,
-    source_name,
 ):
     try:
-        source_slug = safe_name(str(source_name).lower())
         plot_outdir.mkdir(parents=True, exist_ok=True)
         sashimi_dir = plot_outdir / "Sashimi_plot"
         sashimi_dir.mkdir(parents=True, exist_ok=True)
-        source_data = plot_outdir / f"{source_slug}_bsj_fsj_signal.tsv"
+        source_data = plot_outdir / "ciri3_bsj_fsj_signal.tsv"
         write_ciri3_signal_table(source_data, signal)
 
         group_rows = signal["group_rows"]
@@ -864,8 +856,8 @@ def run_ciri3_bsj_signal_plot(
                     ((start + end) / 2.0, y),
                     width=(end - start),
                     height=arc_height,
-                    theta1=180,
-                    theta2=360,
+                    theta1=0,
+                    theta2=180,
                     linewidth=arc_width,
                     color=color,
                     alpha=0.95,
@@ -873,10 +865,10 @@ def run_ciri3_bsj_signal_plot(
                 ax.add_patch(arc)
                 ax.text(
                     (start + end) / 2.0,
-                    y - arc_height / 2.0 - 0.08,
+                    y + arc_height / 2.0 + 0.08,
                     format_count(bsj),
                     ha="center",
-                    va="top",
+                    va="bottom",
                     fontsize=label_font,
                     color=color,
                 )
@@ -912,7 +904,7 @@ def run_ciri3_bsj_signal_plot(
         ax.set_title(
             (
                 f"{event['gene_id'] or event['circRNA_ID']} | {event['circRNA_ID']}\n"
-                f"{source_name} BSJ_Matrix / FSJ_Matrix signal"
+                "CIRI3 BSJ_Matrix / FSJ_Matrix signal"
             ),
             fontsize=font_size + 1,
         )
@@ -920,7 +912,7 @@ def run_ciri3_bsj_signal_plot(
             0.01,
             0.02,
             (
-                f"Lower arc: {source_name} BSJ count; baseline: {source_name} FSJ/support count; "
+                "Arc: CIRI3 BSJ count; baseline: CIRI3 FSJ count; "
                 "JR=2*BSJ/(2*BSJ+FSJ)"
             ),
             transform=ax.transAxes,
@@ -933,7 +925,7 @@ def run_ciri3_bsj_signal_plot(
             ax.text(
                 0.5,
                 0.5,
-                f"No matching {source_name} BSJ/FSJ matrix row",
+                "No matching CIRI3 BSJ/FSJ matrix row",
                 transform=ax.transAxes,
                 ha="center",
                 va="center",
@@ -944,7 +936,7 @@ def run_ciri3_bsj_signal_plot(
             ax.spines[spine].set_visible(False)
         fig.tight_layout()
 
-        pdf_path = sashimi_dir / f"{event_key}.{source_slug}_bsj_fsj_signal.pdf"
+        pdf_path = sashimi_dir / f"{event_key}.ciri3_bsj_fsj_signal.pdf"
         fig.savefig(pdf_path, bbox_inches="tight")
         plt.close(fig)
         pdfs = [str(pdf_path.resolve())] if pdf_path.is_file() else []
@@ -1172,7 +1164,6 @@ log_path = Path(snakemake.log[0])
 
 method = str(snakemake.wildcards.method)
 comparison = str(snakemake.wildcards.comparison)
-source_name = str(getattr(snakemake.params, "source_name", "CIRI3") or "CIRI3")
 padj_cutoff = float(snakemake.params.padj_cutoff)
 lfc_cutoff = float(snakemake.params.lfc_cutoff)
 max_events = int(snakemake.params.max_events)
@@ -1240,7 +1231,6 @@ for event in events:
     event["bsj_total_fsj"] = signal["total_fsj"]
     event["bsj_junction_ratio"] = signal["junction_ratio"]
     event["bsj_matrix_row_found"] = "yes" if signal["matrix_row_found"] else "no"
-    event["source_name"] = source_name
 write_augmented_gff3(base_gff3, augmented_gff3, events)
 
 colors = list(snakemake.params.colors)
@@ -1279,14 +1269,12 @@ def make_base_cmd(b1_path, b2_path, group_info_path):
 
 env = os.environ.copy()
 env.setdefault("MPLBACKEND", "Agg")
-env["CIRCRNA_SASHIMI_BSJ_BELOW"] = "1"
 manifest_rows = []
 
 with open(log_path, "w") as log_handle:
     log_handle.write(
         f"Input BSJ DEG result: {event_result}\n"
         f"Method: {method}\n"
-        f"BSJ source: {source_name}\n"
         f"Comparison: {comparison}\n"
         f"Selected BSJs: {len(events)}\n"
         f"Thresholds: padj/FDR < {padj_cutoff}, |effect| >= {lfc_cutoff} "
@@ -1296,13 +1284,11 @@ with open(log_path, "w") as log_handle:
         f"Full plot directory: {plots_root.resolve()}\n"
         f"BSJ-only plot directory: {bsj_only_plots_root.resolve()}\n"
         f"BSJ-only GFF3 directory: {bsj_only_annotation_root.resolve()}\n"
-        f"BSJ labels: {source_name} BSJ_Matrix / FSJ_Matrix fields embedded in synthetic GFF3\n"
-        f"{source_name} BSJ loading: event-level pseudo-BAM junction reads are generated "
+        f"BSJ labels: CIRI3 BSJ_Matrix / FSJ_Matrix fields embedded in synthetic GFF3\n"
+        f"CIRI3 BSJ loading: event-level pseudo-BAM junction reads are generated "
         f"and passed to rmats2sashimiplot/MISO\n"
-        f"Junction orientation: tagged {source_name} BSJ pseudo-read arcs below; "
-        f"ordinary BAM/FSJ arcs above\n"
-        f"{source_name} BSJ matrix: {bsj_matrix_path.resolve()}\n"
-        f"{source_name} FSJ matrix: {fsj_matrix_path.resolve()}\n"
+        f"CIRI3 BSJ matrix: {bsj_matrix_path.resolve()}\n"
+        f"CIRI3 FSJ matrix: {fsj_matrix_path.resolve()}\n"
         f"Auto scale: {auto_scale}; groups={group_summary['groups']}; "
         f"samples={group_summary['samples']}\n"
         f"Colors passed to rmats2sashimiplot: {','.join(plot_colors) or 'default'}\n\n"
@@ -1358,7 +1344,6 @@ with open(log_path, "w") as log_handle:
             region_end,
             True,
             log_handle,
-            source_name,
         )
         full_miso_plot = run_sashimi_plot(
             make_base_cmd(full_inputs["b1"], full_inputs["b2"], full_inputs["group_info"]),
@@ -1383,7 +1368,6 @@ with open(log_path, "w") as log_handle:
             event_key,
             log_handle,
             "full",
-            source_name,
         )
         full_plot = combine_plot_results(full_miso_plot, full_signal_plot)
         bsj_only_inputs = build_ciri3_miso_inputs(
@@ -1396,7 +1380,6 @@ with open(log_path, "w") as log_handle:
             region_end,
             False,
             log_handle,
-            source_name,
         )
         bsj_only_miso_plot = run_sashimi_plot(
             make_base_cmd(
@@ -1425,7 +1408,6 @@ with open(log_path, "w") as log_handle:
             event_key,
             log_handle,
             "bsj_only",
-            source_name,
         )
         bsj_only_plot = combine_plot_results(bsj_only_miso_plot, bsj_only_signal_plot)
         failed_variants = [
@@ -1482,7 +1464,7 @@ with open(log_path, "w") as log_handle:
                 "bsj_only_pdfs": ",".join(bsj_only_plot["pdfs"]),
                 "bsj_only_status": bsj_only_plot["status"],
                 "bsj_only_returncode": bsj_only_plot["returncode"],
-                "bsj_only_source": f"rmats2sashimiplot_MISO_from_{source_name}_BSJ_pseudo_BAM",
+                "bsj_only_source": "rmats2sashimiplot_MISO_from_CIRI3_BSJ_pseudo_BAM",
                 "bsj_only_bsj_matrix": str(bsj_matrix_path.resolve()),
                 "bsj_only_fsj_matrix": str(fsj_matrix_path.resolve()),
                 "bsj_only_miso_bam_source": bsj_only_inputs["bam_source"],
