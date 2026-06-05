@@ -49,6 +49,9 @@ rule all:
         f"{OUTDIR}/splicing/all_samples_distributions.tsv",
         f"{OUTDIR}/splicing/all_samples_alternative_back_splicing.tsv",
         f"{OUTDIR}/splicing/all_samples_overview.png",
+        f"{OUTDIR}/igv/bsj/all_samples.bsj.bed",
+        f"{OUTDIR}/igv/bsj/all_samples.bsj.tsv",
+        *expand(f"{OUTDIR}/igv/bsj/per_sample/{{sample}}.bsj.bed", sample=SAMPLES),
 
         # rMATS-turbo AS event calling from STAR BAMs + optional pairwise sashimi plots
         *RMATS_EVENT_TARGETS,

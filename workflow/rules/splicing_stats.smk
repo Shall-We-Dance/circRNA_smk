@@ -38,3 +38,20 @@ rule summarize_splicing_site_stats:
         "envs/splicing_stats.yaml"
     script:
         "scripts/summarize_splicing_site_stats.py"
+
+
+rule export_bsj_igv_tracks:
+    input:
+        circ_tables=expand(f"{OUTDIR}/splicing/{{sample}}/circ_splice_sites.tsv", sample=SAMPLES)
+    output:
+        aggregate=f"{OUTDIR}/igv/bsj/all_samples.bsj.bed",
+        metadata=f"{OUTDIR}/igv/bsj/all_samples.bsj.tsv",
+        per_sample=expand(f"{OUTDIR}/igv/bsj/per_sample/{{sample}}.bsj.bed", sample=SAMPLES)
+    log:
+        "logs/igv/bsj_tracks.log"
+    params:
+        samples=SAMPLES
+    conda:
+        "envs/splicing_stats.yaml"
+    script:
+        "scripts/export_bsj_igv_tracks.py"
