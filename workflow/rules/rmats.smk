@@ -91,6 +91,8 @@ rule fetch_rmats_turbo:
 
 
 rule fetch_rmats2sashimiplot:
+    input:
+        bsj_arc_patch="workflow/rules/scripts/rmats2sashimiplot_bsj_below.patch"
     output:
         script=RMATS2SASHIMI_SCRIPT,
         ready=RMATS2SASHIMI_READY
@@ -107,6 +109,7 @@ rule fetch_rmats2sashimiplot:
         log_dir=$(dirname "{log}")
         repo_dir=$(dirname "{output.ready}")
         repo_parent=$(dirname "$repo_dir")
+        patch_file_abs=$(realpath "{input.bsj_arc_patch}")
         mkdir -p "$log_dir" "$repo_parent"
 
         if [ -z "$repo_dir" ] || [ "$repo_dir" = "." ] || [ "$repo_dir" = "$(dirname "$repo_dir")" ]; then
@@ -149,6 +152,15 @@ rule fetch_rmats2sashimiplot:
 
         echo "Converting bundled rmats2sashimiplot/MISO source for Python 3 compatibility" >> "{log}"
         python -m lib2to3 -w -n "$repo_dir/src/rmats2sashimiplot" "$repo_dir/src/MISO" >> "{log}" 2>&1
+        echo "Applying circRNA_smk BSJ-below junction rendering patch" >> "{log}"
+        if patch --dry-run -N -p1 -d "$repo_dir" < "$patch_file_abs" >> "{log}" 2>&1; then
+          patch -N -p1 -d "$repo_dir" < "$patch_file_abs" >> "{log}" 2>&1
+        elif patch --dry-run -R -p1 -d "$repo_dir" < "$patch_file_abs" >> "{log}" 2>&1; then
+          echo "BSJ-below rendering patch was already applied." >> "{log}"
+        else
+          echo "Could not apply BSJ-below rendering patch to rmats2sashimiplot." >> "{log}"
+          exit 1
+        fi
 
         test -s "{output.script}" || (echo "Missing rmats2sashimiplot.py after checkout: {output.script}" >> "{log}"; exit 1)
         touch "{output.ready}"

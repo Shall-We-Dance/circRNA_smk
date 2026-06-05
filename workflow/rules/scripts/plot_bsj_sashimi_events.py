@@ -856,8 +856,8 @@ def run_ciri3_bsj_signal_plot(
                     ((start + end) / 2.0, y),
                     width=(end - start),
                     height=arc_height,
-                    theta1=0,
-                    theta2=180,
+                    theta1=180,
+                    theta2=360,
                     linewidth=arc_width,
                     color=color,
                     alpha=0.95,
@@ -865,10 +865,10 @@ def run_ciri3_bsj_signal_plot(
                 ax.add_patch(arc)
                 ax.text(
                     (start + end) / 2.0,
-                    y + arc_height / 2.0 + 0.08,
+                    y - arc_height / 2.0 - 0.08,
                     format_count(bsj),
                     ha="center",
-                    va="bottom",
+                    va="top",
                     fontsize=label_font,
                     color=color,
                 )
@@ -912,7 +912,7 @@ def run_ciri3_bsj_signal_plot(
             0.01,
             0.02,
             (
-                "Arc: CIRI3 BSJ count; baseline: CIRI3 FSJ count; "
+                "Lower arc: CIRI3 BSJ count; baseline: CIRI3 FSJ count; "
                 "JR=2*BSJ/(2*BSJ+FSJ)"
             ),
             transform=ax.transAxes,
@@ -1269,6 +1269,7 @@ def make_base_cmd(b1_path, b2_path, group_info_path):
 
 env = os.environ.copy()
 env.setdefault("MPLBACKEND", "Agg")
+env["CIRCRNA_SASHIMI_BSJ_BELOW"] = "1"
 manifest_rows = []
 
 with open(log_path, "w") as log_handle:
@@ -1287,6 +1288,8 @@ with open(log_path, "w") as log_handle:
         f"BSJ labels: CIRI3 BSJ_Matrix / FSJ_Matrix fields embedded in synthetic GFF3\n"
         f"CIRI3 BSJ loading: event-level pseudo-BAM junction reads are generated "
         f"and passed to rmats2sashimiplot/MISO\n"
+        f"Junction orientation: tagged CIRI3 BSJ pseudo-read arcs below; "
+        f"ordinary BAM/FSJ arcs above\n"
         f"CIRI3 BSJ matrix: {bsj_matrix_path.resolve()}\n"
         f"CIRI3 FSJ matrix: {fsj_matrix_path.resolve()}\n"
         f"Auto scale: {auto_scale}; groups={group_summary['groups']}; "
