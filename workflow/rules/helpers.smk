@@ -588,9 +588,8 @@ else:
 
 DEG_COMPARISON_NAMES = list(DEG_COMPARISONS.keys())
 CIRI3_DE_COMPARISON_NAMES = DEG_COMPARISON_NAMES
-CIRI3_DE_COMPARISON_REGEX = "|".join(
-    re.escape(name) for name in CIRI3_DE_COMPARISON_NAMES
-) or r"(?!)"
+DEG_COMPARISON_REGEX = "|".join(re.escape(name) for name in DEG_COMPARISON_NAMES) or r"(?!)"
+CIRI3_DE_COMPARISON_REGEX = DEG_COMPARISON_REGEX
 RMATS_GROUP_NAMES = DEG_GROUP_NAMES if RMATS_ENABLED else []
 RMATS_GROUP_REGEX = "|".join(
     re.escape(name) for name in RMATS_GROUP_NAMES
@@ -709,10 +708,40 @@ def bsj_sashimi_result_path(wildcards):
     raise ValueError(f"Unsupported BSJ sashimi method: {wildcards.method}")
 
 
+def bsj_sashimi_annotation_path(wildcards):
+    if wildcards.method in {"deseq2", "de_bsj", "de_ratio", "de_relative"}:
+        return f"{OUTDIR}/ciri3/all_samples.ciri3"
+    raise ValueError(f"Unsupported BSJ sashimi method: {wildcards.method}")
+
+
+def bsj_sashimi_bsj_matrix_path(wildcards):
+    if wildcards.method in {"deseq2", "de_bsj", "de_ratio", "de_relative"}:
+        return f"{OUTDIR}/ciri3/all_samples.ciri3.BSJ_Matrix"
+    raise ValueError(f"Unsupported BSJ sashimi method: {wildcards.method}")
+
+
+def bsj_sashimi_fsj_matrix_path(wildcards):
+    if wildcards.method in {"deseq2", "de_bsj", "de_ratio", "de_relative"}:
+        return f"{OUTDIR}/ciri3/all_samples.ciri3.FSJ_Matrix"
+    raise ValueError(f"Unsupported BSJ sashimi method: {wildcards.method}")
+
+
+def bsj_sashimi_source_name(wildcards):
+    if wildcards.method in {"deseq2", "de_bsj", "de_ratio", "de_relative"}:
+        return "CIRI3"
+    raise ValueError(f"Unsupported BSJ sashimi method: {wildcards.method}")
+
+
 RMATS_EVENT_TARGETS = (
     [
         f"{OUTDIR}/rmats/groups/{group}/{event_type}.MATS.{count_type}.txt"
         for group in RMATS_GROUP_NAMES
+        for event_type in RMATS_EVENT_TYPES
+        for count_type in RMATS_COUNT_TYPES
+    ]
+    + [
+        f"{OUTDIR}/rmats/{comparison}/{event_type}.MATS.{count_type}.txt"
+        for comparison in RMATS_COMPARISON_NAMES
         for event_type in RMATS_EVENT_TYPES
         for count_type in RMATS_COUNT_TYPES
     ]
@@ -721,6 +750,16 @@ RMATS_EVENT_TARGETS = (
 )
 SASHIMI_TARGETS = (
     [
+        f"{OUTDIR}/rmats/sashimi/{comparison}/{event_type}.{SASHIMI_COUNT_TYPE}/manifest.tsv"
+        for comparison in RMATS_COMPARISON_NAMES
+        for event_type in RMATS_EVENT_TYPES
+    ]
+    + [
+        f"{OUTDIR}/rmats/sashimi/{comparison}/{event_type}.{SASHIMI_COUNT_TYPE}/plots.done"
+        for comparison in RMATS_COMPARISON_NAMES
+        for event_type in RMATS_EVENT_TYPES
+    ]
+    + [
         f"{OUTDIR}/rmats/sashimi/bsj/{method}/{comparison}/manifest.tsv"
         for method in BSJ_SASHIMI_METHODS
         for comparison in DEG_COMPARISON_NAMES

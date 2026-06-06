@@ -444,6 +444,7 @@ rule circtools_circtest:
         log_dir=$(dirname "{log}")
         mkdir -p "$outdir" "$log_dir"
 
+        set +e
         circtools circtest \
           -d "{params.detect_dir}" \
           -l "{params.condition_list}" \
@@ -458,6 +459,20 @@ rule circtools_circtest:
           -o "$outdir" \
           -n circtest \
           > "{log}" 2>&1
+        circtest_status=$?
+        set -e
+
+        if grep -Fq "No candidates to plot, exiting." "{log}"; then
+          python "workflow/rules/scripts/write_empty_circtest_outputs.py" \
+            --csv "{output.csv}" \
+            --xlsx "{output.xlsx}" \
+            --pdf "{output.pdf}" \
+            --comparison "{wildcards.comparison}" \
+            --log "{log}"
+          exit 0
+        fi
+
+        exit "$circtest_status"
         """
 
 

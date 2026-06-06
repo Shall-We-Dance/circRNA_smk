@@ -101,37 +101,85 @@ deg:
       - sample_C_rep2
       - sample_C_rep3
 
-  comparisons:
-    condition_B_vs_condition_A:
-      case_group: condition_B
-      control_group: condition_A
-    condition_C_vs_condition_A:
-      case_group: condition_C
-      control_group: condition_A
-    condition_C_vs_condition_B:
-      case_group: condition_C
-      control_group: condition_B
+  # the normal target graph and feed both CIRI3 DEG plots and BSJ sashimi plots.
+  run_deseq2: true
+  run_de_bsj: true
+  run_de_ratio: true
+  run_de_relative: true
+  ciri3_gene_expression_from_featurecounts: true
 
-  run_deseq2: false
-  run_de_bsj: false
-  run_de_ratio: false
-  run_de_relative: false
-  ciri3_gene_expression_from_featurecounts: false
+  min_total_count: 10
+  min_samples_detected: 2
+  padj_cutoff: 0.05
+  lfc_cutoff: 1.0
 
 motif:
-  enabled: false
+  # Run BSJ-centered motif analysis with HOMER from CIRI3 BSJ sites.
+  enabled: true
+  # Sequence window size on each side of the BSJ donor/acceptor site.
+  flank: 30
+  # How to weight each BSJ when aggregating site support for sequence export:
+  # sum | mean | none
+  weight_mode: "sum"
+  # Motif lengths for HOMER findMotifs.pl, comma-separated.
+  homer_len: "8,10,12"
 
 splicing_stats:
-  enabled: false
+  # Per-sample BSJ/FSJ splice-site summary, ABS tables, overview plots, and
+  # IGV-loadable BSJ BED tracks.
+  enabled: true
 
 rmats_turbo:
-  enabled: false
+  # Run rMATS-turbo on STAR coordinate-sorted BAMs for configured groups and
+  # pairwise contrasts; pairwise event files feed ordinary rMATS sashimi plots.
+  enabled: true
+  repo_url: "https://github.com/Xinglab/rmats-turbo.git"
+  ref: "v4.3.0"
+  read_length: 150
+  read_type: "paired"
+  lib_type: "fr-unstranded"
+  variable_read_length: true
+  allow_clipping: false
+  novel_splice_sites: false
+  paired_stats: false
+  statoff: false
+  individual_counts: false
+  event_types: ["SE", "A5SS", "A3SS", "MXE", "RI"]
+  count_types: ["JC", "JCEC"]
 
 sashimi:
-  enabled: false
+  # Plot BSJ-centered sashimi PDFs from DESeq2 and enabled CIRI3 DEG methods.
+  enabled: true
+  repo_url: "https://github.com/Xinglab/rmats2sashimiplot.git"
+  ref: "v3.0.0"
+  count_type: "JC"
+  fdr_cutoff: 0.05
+  pvalue_cutoff: 1.0
+  inc_diff_cutoff: 0.1
+  max_events_per_comparison_type: 0
+  bsj_flank: 250
+  min_counts: 0
+  exon_s: 1
+  intron_s: 5
+  auto_scale: true
+  font_size: 8
+  min_font_size: 6
+  fig_width: 8
+  fig_height: 0
+  min_fig_width: 8
+  max_fig_width: 18
+  min_fig_height: 4.5
+  max_fig_height: 12
+  fail_on_error: false
+  colors:
+    - "#4C78A8"
+    - "#F58518"
+    - "#54A24B"
+    - "#B279A2"
+    - "#E45756"
 
 circrna_plots:
-  enabled: false
+  enabled: true
 
 circtools:
   enabled: true
@@ -157,7 +205,18 @@ circtools:
     max_plots: 50
 
   primex:
+    # circtools primex designs outward-facing primer pairs for selected circRNA
+    # candidates. Keep disabled unless you need experimental validation primer
+    # design outputs under results/circtools/primex/.
     enabled: false
+    top_n: 25
+    product_size: [80, 160]
+    num_pairs: 5
+    # r = reverse primer on BSJ, f = forward primer on BSJ, n = neither.
+    junction: "n"
+    # Leave organism empty for non-bundled organisms such as Aedes aegypti.
+    organism: ""
+    no_blast: true
 
   quickcheck:
     enabled: true
