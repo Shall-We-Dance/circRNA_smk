@@ -169,7 +169,8 @@ rule ciri3_run_de_ratio:
     output:
         result=f"{CIRI3_DE_OUTDIR}/{{comparison}}/de_ratio/result.txt"
     params:
-        finalize_script=CIRI3_RATIO_RELATIVE_DEG_SCRIPT
+        finalize_script=CIRI3_RATIO_RELATIVE_DEG_SCRIPT,
+        rmats_exe=CIRI3_RMATS_EXE
     conda:
         "envs/ciri3.yaml"
     log:
@@ -182,6 +183,15 @@ rule ciri3_run_de_ratio:
         mkdir -p "$output_dir" "$log_dir"
         rm -f "{output.result}" "{output.result}_"*
 
+        repair_note=""
+        if [ -f "{params.rmats_exe}" ] && [ ! -x "{params.rmats_exe}" ]; then
+          if chmod u+x "{params.rmats_exe}" 2>/dev/null; then
+            repair_note="Marked CIRI3 rMATSexe executable: {params.rmats_exe}"
+          else
+            repair_note="Warning: could not mark CIRI3 rMATSexe executable: {params.rmats_exe}"
+          fi
+        fi
+
         set +e
         java -jar "{input.jar}" DE_Ratio \
           -I "{input.info}" \
@@ -191,6 +201,10 @@ rule ciri3_run_de_ratio:
           > "{log}" 2>&1
         status=$?
         set -e
+
+        if [ -n "$repair_note" ]; then
+          echo "$repair_note" >> "{log}"
+        fi
 
         if [ "$status" -ne 0 ]; then
           echo "" >> "{log}"
@@ -219,7 +233,8 @@ rule ciri3_run_de_relative:
     output:
         result=f"{CIRI3_DE_OUTDIR}/{{comparison}}/de_relative/result.txt"
     params:
-        finalize_script=CIRI3_RATIO_RELATIVE_DEG_SCRIPT
+        finalize_script=CIRI3_RATIO_RELATIVE_DEG_SCRIPT,
+        rmats_exe=CIRI3_RMATS_EXE
     conda:
         "envs/ciri3.yaml"
     log:
@@ -232,6 +247,15 @@ rule ciri3_run_de_relative:
         mkdir -p "$output_dir" "$log_dir"
         rm -f "{output.result}" "{output.result}_"*
 
+        repair_note=""
+        if [ -f "{params.rmats_exe}" ] && [ ! -x "{params.rmats_exe}" ]; then
+          if chmod u+x "{params.rmats_exe}" 2>/dev/null; then
+            repair_note="Marked CIRI3 rMATSexe executable: {params.rmats_exe}"
+          else
+            repair_note="Warning: could not mark CIRI3 rMATSexe executable: {params.rmats_exe}"
+          fi
+        fi
+
         set +e
         java -jar "{input.jar}" DE_Relative \
           -I "{input.info}" \
@@ -241,6 +265,10 @@ rule ciri3_run_de_relative:
           > "{log}" 2>&1
         status=$?
         set -e
+
+        if [ -n "$repair_note" ]; then
+          echo "$repair_note" >> "{log}"
+        fi
 
         if [ "$status" -ne 0 ]; then
           echo "" >> "{log}"

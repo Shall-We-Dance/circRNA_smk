@@ -7,7 +7,8 @@ rule fetch_ciri3_release:
         ready=CIRI3_READY
     params:
         repo_url=CIRI3_REPO_URL,
-        ref=CIRI3_REPO_REF
+        ref=CIRI3_REPO_REF,
+        rmats_exe=CIRI3_RMATS_EXE
     log:
         "logs/ciri3/fetch_ciri3.log"
     conda:
@@ -32,6 +33,10 @@ rule fetch_ciri3_release:
         elif [ -e "$repo_dir" ]; then
           if [ -s "{output.jar}" ] && [ -s "{output.bsj_yes}" ]; then
             echo "Using existing non-git CIRI3 install_dir with required files: $repo_dir" > "{log}"
+            if [ -f "{params.rmats_exe}" ] && [ ! -x "{params.rmats_exe}" ]; then
+              chmod u+x "{params.rmats_exe}" >> "{log}" 2>&1 || \
+                echo "Warning: could not mark CIRI3 rMATSexe executable: {params.rmats_exe}" >> "{log}"
+            fi
             touch "{output.ready}"
             exit 0
           fi
@@ -63,6 +68,10 @@ rule fetch_ciri3_release:
 
         test -s "{output.jar}" || (echo "Missing CIRI3 jar after checkout: {output.jar}" >> "{log}"; exit 1)
         test -s "{output.bsj_yes}" || (echo "Missing CIRI3 DEG script after checkout: {output.bsj_yes}" >> "{log}"; exit 1)
+        if [ -f "{params.rmats_exe}" ] && [ ! -x "{params.rmats_exe}" ]; then
+          chmod u+x "{params.rmats_exe}" >> "{log}" 2>&1 || \
+            echo "Warning: could not mark CIRI3 rMATSexe executable: {params.rmats_exe}" >> "{log}"
+        fi
         touch "{output.ready}"
         """
 

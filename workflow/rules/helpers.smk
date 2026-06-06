@@ -97,6 +97,7 @@ CIRI3_INSTALL_DIR = ciri3_cfg.get(
 CIRI3_READY = os.path.join(CIRI3_INSTALL_DIR, ".snakemake_ready")
 CIRI3_JAR = os.path.join(CIRI3_INSTALL_DIR, CIRI3_JAR_NAME)
 CIRI3_BSJ_YES = os.path.join(CIRI3_INSTALL_DIR, "scripts", "BSJ_yes.R")
+CIRI3_RMATS_EXE = os.path.join(CIRI3_INSTALL_DIR, "scripts", "rMATSexe")
 
 rmats_cfg = config.get("rmats_turbo", {}) or {}
 if not isinstance(rmats_cfg, dict):
