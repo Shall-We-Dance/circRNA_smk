@@ -225,10 +225,9 @@ def synthetic_bsj_gff3_lines(events):
     for index, event in enumerate(events, start=1):
         start = int(event["start"])
         end = int(event["end"])
-        span = max(1, end - start + 1)
-        anchor = max(1, min(50, span // 10 if span >= 10 else span))
-        left_end = min(end, start + anchor - 1)
-        right_start = max(start, end - anchor + 1)
+        anchor = event_anchor_length(event)
+        left_start = max(1, start - anchor + 1)
+        right_end = end + anchor - 1
         feature_id = f"bsj-{index:05d}-{safe_name(event['circRNA_ID'])}"
         name = event["gene_id"] or event["circRNA_ID"]
         signal_note = bsj_signal_summary(event)
@@ -252,8 +251,8 @@ def synthetic_bsj_gff3_lines(events):
         rows = [
             (
                 "gene",
-                start,
-                end,
+                left_start,
+                right_end,
                 {
                     "ID": f"{feature_id}.gene",
                     "Name": bsj_display_name(event, name),
@@ -263,8 +262,8 @@ def synthetic_bsj_gff3_lines(events):
             ),
             (
                 "mRNA",
-                start,
-                end,
+                left_start,
+                right_end,
                 {
                     "ID": f"{feature_id}.tx",
                     "Parent": f"{feature_id}.gene",
@@ -275,8 +274,8 @@ def synthetic_bsj_gff3_lines(events):
             ),
             (
                 "exon",
+                left_start,
                 start,
-                left_end,
                 {
                     "ID": f"{feature_id}.left_anchor",
                     "Parent": f"{feature_id}.tx",
@@ -285,8 +284,8 @@ def synthetic_bsj_gff3_lines(events):
             ),
             (
                 "exon",
-                right_start,
                 end,
+                right_end,
                 {
                     "ID": f"{feature_id}.right_anchor",
                     "Parent": f"{feature_id}.tx",

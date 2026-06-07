@@ -591,7 +591,7 @@ if (mode == "pairwise") {
   }
   result_list <- lapply(result_paths, function(path) {
     df <- add_annotation(read_ciri3_result(path), ciri3_annotation)
-    df$comparison <- basename(dirname(dirname(path)))
+    df$comparison <- rep(basename(dirname(dirname(path))), nrow(df))
     df
   })
   all_results <- do.call(rbind, result_list)

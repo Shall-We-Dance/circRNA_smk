@@ -314,7 +314,7 @@ if (method == "de_ratio") {
   }
 }
 
-result$PValue <- NA_real_
+result$PValue <- rep(NA_real_, nrow(result))
 official <- find_official_stats(opts$out, result$circRNA_ID)
 if (!is.null(official)) {
   idx <- match(result$circRNA_ID, official$circRNA_ID)
@@ -335,7 +335,7 @@ if (any(missing_p)) {
   }, numeric(1))
 }
 
-result$FDR <- NA_real_
+result$FDR <- rep(NA_real_, nrow(result))
 valid_p <- is.finite(result$PValue)
 if (any(valid_p)) {
   result$FDR[valid_p] <- p.adjust(result$PValue[valid_p], method = "fdr")

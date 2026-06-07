@@ -24,7 +24,7 @@
      # gene_reads = sam_utils.fetch_bam_reads_in_gene(bamfile, gene_obj.chrom,\
      #     tx_start, tx_end, gene_obj)
      # reads, num_raw_reads = sam_utils.sam_parse_reads(gene_reads,\
-@@ -131,49 +134,57 @@
+@@ -131,49 +134,60 @@
      min_counts = settings["min_counts"]  # if the jxn is smaller than it, then omit the text plotting
      show_text_background = settings["text_background"]
      maxy = 0
@@ -68,13 +68,15 @@
 +                if leftss in sslists[i] and \
 +                    rightss in sslists[i]:
 +                    numisoforms += 1
-+            if numisoforms > 0:
-+                if is_bsj or (not draw_bsj_below and numisoforms % 2 == 0):
-+                    pts = [(ss1, 0), (ss1, -h), (ss2, -h), (ss2, 0)]
-+                    midpt = cubic_bezier(pts, .5)
-+                else:
-+                    leftdens = wiggle[leftss - tx_start - 1]
-+                    rightdens = wiggle[rightss - tx_start]
++            draw_on_bottom = is_bsj or (
++                not draw_bsj_below and numisoforms > 0 and numisoforms % 2 == 0
++            )
++            if draw_on_bottom:
++                pts = [(ss1, 0), (ss1, -h), (ss2, -h), (ss2, 0)]
++                midpt = cubic_bezier(pts, .5)
++            else:
++                leftdens = wiggle[leftss - tx_start - 1]
++                rightdens = wiggle[rightss - tx_start]
  
 -                pts = [(ss1, leftdens),
 -                       (ss1, leftdens + h),
@@ -92,31 +94,32 @@
 -                    interval = axvar.get_ylim()[1]*0.05
 -                    y = interval + midpt[1]
 -                    maxy = max(maxy, y)
-+                    pts = [(ss1, leftdens),
-+                           (ss1, leftdens + h),
-+                           (ss2, rightdens + h),
-+                           (ss2, rightdens)]
-+                    midpt = cubic_bezier(pts, .5)
-+                if min_counts == 0 or junction_counts[jxn] >= min_counts:
-+                    if number_junctions:
-+                        if show_text_background:
-+                            txt = text(midpt[0], midpt[1], '%s'%(junction_counts[jxn]),
-+                                fontsize=font_size-2, ha='center', va='center', backgroundcolor='w')
-+                        else:
-+                            txt = text(midpt[0], midpt[1], '%s' % (junction_counts[jxn]),
-+                                fontsize=font_size-2, ha='center', va='center')
-+                        interval = axvar.get_ylim()[1]*0.05
-+                        y = interval + midpt[1]
-+                        maxy = max(maxy, y)
++                pts = [(ss1, leftdens),
++                       (ss1, leftdens + h),
++                       (ss2, rightdens + h),
++                       (ss2, rightdens)]
++                midpt = cubic_bezier(pts, .5)
++            if min_counts == 0 or junction_counts[jxn] >= min_counts:
++                if number_junctions:
++                    label = "BSJ=%s" % (junction_counts[jxn]) if is_bsj else "%s" % (junction_counts[jxn])
++                    if show_text_background:
++                        txt = text(midpt[0], midpt[1], label,
++                            fontsize=font_size-2, ha='center', va='center', backgroundcolor='w')
++                    else:
++                        txt = text(midpt[0], midpt[1], label,
++                            fontsize=font_size-2, ha='center', va='center')
++                    interval = axvar.get_ylim()[1]*0.05
++                    y = interval + midpt[1]
++                    maxy = max(maxy, y)
  
 -                a = Path(pts, [Path.MOVETO, Path.CURVE4, Path.CURVE4, Path.CURVE4])
 -                p = PathPatch(a, ec=color, lw=log(jxns[jxn] + 1) /\
 -                    log(junction_log_base) * (jxns[jxn] + 1)**0.33 * 0.1, fc='none', clip_on=False)
 -                axvar.add_patch(p)
-+                    a = Path(pts, [Path.MOVETO, Path.CURVE4, Path.CURVE4, Path.CURVE4])
-+                    p = PathPatch(a, ec=color, lw=log(junction_counts[jxn] + 1) /\
-+                        log(junction_log_base) * (junction_counts[jxn] + 1)**0.33 * 0.1, fc='none', clip_on=False)
-+                    axvar.add_patch(p)
++                a = Path(pts, [Path.MOVETO, Path.CURVE4, Path.CURVE4, Path.CURVE4])
++                p = PathPatch(a, ec=color, lw=log(junction_counts[jxn] + 1) /\
++                    log(junction_log_base) * (junction_counts[jxn] + 1)**0.33 * 0.1, fc='none', clip_on=False)
++                axvar.add_patch(p)
  
      # Format plot
      # ylim(ymin, ymax)
@@ -129,7 +132,7 @@
      """
      Convert reads to wiggles; uses pysam.
      """
-@@ -581,10 +592,13 @@
+@@ -581,9 +592,12 @@
                             and rightss > tx_start and rightss < tx_end:
                          jxn = ":".join(map(str, [leftss, rightss]))
 +                        counts = jxns
@@ -144,3 +147,32 @@
              except:
                  pass
      return
+--- a/src/rmats2sashimiplot/rmats2sashimiplot.py
++++ b/src/rmats2sashimiplot/rmats2sashimiplot.py
+@@ -436,22 +436,22 @@ def plot_with_coordinate(options):
+                 strand = items[6]
+                 annot_str = items[8].strip()
+                 # judge whether the coordinates fit in the item
+                 if (in_strand == strand
+                     and ((item_type == 'exon'
+-                          and int(in_coor_s) <= int(coor_s)
+-                          and int(coor_e) <= int(in_coor_e))
++                          and int(coor_s) < int(in_coor_e)
++                          and int(coor_e) > int(in_coor_s))
+                          or (is_mrna_or_transcript
+                              and int(coor_s) < int(in_coor_e)
+                              and int(coor_e) > int(in_coor_s)))):
+-                    if is_mrna_or_transcript:
++                    if is_mrna_or_transcript or item_type == "exon":
+                         if int(coor_s) < int(in_coor_s):
+                             coor_s = in_coor_s
+                         if int(coor_e) > int(in_coor_e):
+                             coor_e = in_coor_e
+-
++                    if is_mrna_or_transcript:
+                         annot_str = annot_str.replace('Parent', 'Note')
+                         w1.write("%s\tensGene\t%s\t%s\t%s\t.\t%s\t.\tParent=%s;%s\n" %
+                                  (item_chr, item_type, coor_s, coor_e, strand, id_str, annot_str))
+                     if item_type == "exon":
+                         w1.write("%s\tensGene\t%s\t%s\t%s\t.\t%s\t.\t%s\n" %
+                                  (item_chr, item_type, coor_s, coor_e, strand, annot_str))

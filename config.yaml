@@ -12,6 +12,7 @@ threads:
   faidx: 2                # samtools faidx
   homer: 8                # findMotifs.pl -p
   splicing_stats: 2       # per-sample and merged splicing-site summaries
+  igv_bigwig: 8           # RNA-seq BigWig track generation
   rmats: 8                # rMATS-turbo --nthread
   sashimi: 2              # Snakemake scheduling threads for rmats2sashimiplot jobs
   circtools_detect: 16    # circtools detect / STAR helper jobs

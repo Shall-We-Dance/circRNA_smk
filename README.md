@@ -77,6 +77,7 @@ To minimize storage footprint, intermediate FASTQs produced by fastp and merged 
 - QC reports (fastp + multiqc)
 - CIRI3 per-sample outputs and all-sample merged outputs
 - featureCounts count matrices
+- IGV tracks: BSJ BED files and per-sample RNA-seq BigWig files under `results/igv/`
 
 ## Pipeline steps
 
@@ -132,7 +133,7 @@ To minimize storage footprint, intermediate FASTQs produced by fastp and merged 
 - samtools
 - fastp
 - MultiQC
-- Python packages: `pysam`
+- Python packages: `pysam`; deepTools `bamCoverage` is used for RNA-seq BigWig tracks
 - HOMER (`findMotifs.pl`)
 - rMATS-turbo build dependencies (provided by `workflow/rules/envs/rmats_turbo.yaml` when using conda)
 - rmats2sashimiplot dependencies: Python, numpy, scipy, matplotlib, pysam, samtools, bedtools
@@ -209,6 +210,7 @@ threads:
   samtools_view: 8
   featurecounts: 8
   faidx: 2
+  igv_bigwig: 2
   homer: 8
 
 reference:

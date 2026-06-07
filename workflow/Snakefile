@@ -5,6 +5,7 @@ include: "rules/qc_fastp.smk"
 include: "rules/align_star.smk"
 include: "rules/featurecount.smk"
 include: "rules/ciri3.smk"
+include: "rules/igv_tracks.smk"
 include: "rules/motif.smk"
 include: "rules/splicing_stats.smk"
 include: "rules/rmats.smk"
@@ -52,6 +53,8 @@ rule all:
         f"{OUTDIR}/igv/bsj/all_samples.bsj.bed",
         f"{OUTDIR}/igv/bsj/all_samples.bsj.tsv",
         *expand(f"{OUTDIR}/igv/bsj/per_sample/{{sample}}.bsj.bed", sample=SAMPLES),
+        *expand(f"{OUTDIR}/igv/rnaseq/raw/{{sample}}.rnaseq.raw.bw", sample=SAMPLES),
+        *expand(f"{OUTDIR}/igv/rnaseq/normalized/{{sample}}.rnaseq.CPM.bw", sample=SAMPLES),
 
         # rMATS-turbo AS event calling from STAR BAMs + optional pairwise sashimi plots
         *RMATS_EVENT_TARGETS,
