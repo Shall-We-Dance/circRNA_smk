@@ -1154,6 +1154,11 @@ fsj_matrix_path = Path(snakemake.input.fsj_matrix)
 samples_path = Path(snakemake.input.samples)
 base_gff3 = Path(snakemake.input.gff3).resolve()
 outdir = Path(snakemake.params.outdir)
+plots_root = snakemake_named_path(
+    snakemake.output,
+    "plots",
+    outdir / "plots",
+)
 bsj_only_plots_root = snakemake_named_path(
     snakemake.output,
     "bsj_only_plots",
@@ -1186,6 +1191,7 @@ min_font_size = int(snakemake.params.min_font_size)
 
 if outdir.exists():
     shutil.rmtree(outdir)
+plots_root.mkdir(parents=True, exist_ok=True)
 bsj_only_plots_root.mkdir(parents=True, exist_ok=True)
 annotation_root.mkdir(parents=True, exist_ok=True)
 bsj_only_annotation_root.mkdir(parents=True, exist_ok=True)
@@ -1288,13 +1294,14 @@ with open(log_path, "w") as log_handle:
         f"when an effect column is available; flank={bsj_flank}\n\n"
         f"Base GFF3: {base_gff3}\n"
         f"Augmented GFF3: {augmented_gff3}\n"
+        f"Full plot directory: {plots_root.resolve()}\n"
         f"BSJ-only plot directory: {bsj_only_plots_root.resolve()}\n"
         f"BSJ-only GFF3 directory: {bsj_only_annotation_root.resolve()}\n"
         f"BSJ labels: {source_name} BSJ_Matrix / FSJ_Matrix fields embedded in synthetic GFF3\n"
         f"{source_name} BSJ loading: event-level pseudo-BAM junction reads are generated "
         f"and passed to rmats2sashimiplot/MISO\n"
         f"Junction orientation: tagged {source_name} BSJ pseudo-read arcs below; "
-        f"ordinary rMATS event sashimi and full real-BAM overlays are skipped by default\n"
+        f"ordinary BAM/FSJ arcs above in plots/; BSJ-only view in plots_bsj_only/\n"
         f"{source_name} BSJ matrix: {bsj_matrix_path.resolve()}\n"
         f"{source_name} FSJ matrix: {fsj_matrix_path.resolve()}\n"
         f"Auto scale: {auto_scale}; groups={group_summary['groups']}; "
@@ -1342,23 +1349,48 @@ with open(log_path, "w") as log_handle:
         if fig_height > 0:
             style_args.extend(["--fig-height", format_float(fig_height)])
         bsj_signal = event["bsj_signal"]
-        full_inputs = {
-            "bam_source": "",
-            "input_dir": "",
-            "b1": "",
-            "b2": "",
-            "group_info": "",
-            "synthetic_bsj_reads": "",
-            "copied_real_reads": "",
-        }
-        full_plot = {
-            "plot_dir": "",
-            "pdfs": [],
-            "status": "skipped",
-            "returncode": "",
-            "signal_pdfs": [],
-            "signal_source_data": "",
-        }
+        full_inputs = build_ciri3_miso_inputs(
+            event,
+            bsj_signal,
+            sample_info,
+            event_key,
+            plots_root / event_key,
+            region_start,
+            region_end,
+            True,
+            log_handle,
+            source_name,
+        )
+        full_miso_plot = run_sashimi_plot(
+            make_base_cmd(
+                full_inputs["b1"],
+                full_inputs["b2"],
+                full_inputs["group_info"],
+            ),
+            style_args,
+            coordinate,
+            plots_root / event_key,
+            log_handle,
+            env,
+            event_key,
+            "full",
+        )
+        full_signal_plot = run_ciri3_bsj_signal_plot(
+            event,
+            bsj_signal,
+            region_start,
+            region_end,
+            plots_root / event_key,
+            fig_width,
+            fig_height,
+            font_size,
+            colors,
+            event_key,
+            log_handle,
+            "full",
+            source_name,
+        )
+        full_plot = combine_plot_results(full_miso_plot, full_signal_plot)
         bsj_only_inputs = build_ciri3_miso_inputs(
             event,
             bsj_signal,
@@ -1403,7 +1435,7 @@ with open(log_path, "w") as log_handle:
         bsj_only_plot = combine_plot_results(bsj_only_miso_plot, bsj_only_signal_plot)
         failed_variants = [
             label
-            for label, result in (("bsj_only", bsj_only_plot),)
+            for label, result in (("full", full_plot), ("bsj_only", bsj_only_plot))
             if result["status"] == "failed"
         ]
         if failed_variants and fail_on_error:
@@ -1474,6 +1506,7 @@ with open(log_path, "w") as log_handle:
             }
         )
 
+plots_root.mkdir(parents=True, exist_ok=True)
 bsj_only_plots_root.mkdir(parents=True, exist_ok=True)
 
 fieldnames = [

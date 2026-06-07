@@ -10,7 +10,8 @@ rule compute_splicing_site_stats:
         summary=f"{OUTDIR}/splicing/{{sample}}/summary.tsv",
         dist=f"{OUTDIR}/splicing/{{sample}}/distributions.tsv",
         abs=f"{OUTDIR}/splicing/{{sample}}/alternative_back_splicing.tsv",
-        plot=f"{OUTDIR}/splicing/{{sample}}/distribution.png"
+        plot=f"{OUTDIR}/splicing/{{sample}}/distribution.png",
+        plot_cpm=f"{OUTDIR}/splicing/{{sample}}/distribution_cpm.png"
     log:
         "logs/splicing/{sample}.compute.log"
     threads: int(config["threads"].get("splicing_stats", 2))
@@ -29,7 +30,8 @@ rule summarize_splicing_site_stats:
         summary=f"{OUTDIR}/splicing/all_samples_summary.tsv",
         distributions=f"{OUTDIR}/splicing/all_samples_distributions.tsv",
         abs_events=f"{OUTDIR}/splicing/all_samples_alternative_back_splicing.tsv",
-        plot=f"{OUTDIR}/splicing/all_samples_overview.png"
+        plot=f"{OUTDIR}/splicing/all_samples_overview.png",
+        plot_cpm=f"{OUTDIR}/splicing/all_samples_overview_cpm.png"
     log:
         "logs/splicing/summarize.log"
     params:

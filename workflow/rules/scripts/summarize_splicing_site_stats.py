@@ -16,6 +16,7 @@ summary_out = Path(snakemake.output.summary)
 dists_out = Path(snakemake.output.distributions)
 abs_out = Path(snakemake.output.abs_events)
 plot_out = Path(snakemake.output.plot)
+cpm_plot_out = Path(snakemake.output.plot_cpm)
 
 
 summary_rows = []
@@ -128,6 +129,7 @@ def dist_fraction_map(feature_name, bins):
 
 
 bsj_detected = metric_map("n_bsj_gt_0")
+total_bsj = metric_map("total_bsj_reads")
 total_bsj_cpm = metric_map("total_bsj_cpm_unique_mapped")
 med_junction_ratio = metric_map("median_junction_ratio")
 n_a5bs = metric_map("n_a5bs_events")
@@ -183,68 +185,86 @@ def stacked_horizontal(ax, fraction_map, bins, labels, colors, title):
     clean_axis(ax)
 
 
-fig_height = max(8.5, 3.5 + 0.42 * len(samples))
-fig, axes = plt.subplots(2, 3, figsize=(18, fig_height))
-axes = axes.flatten()
-fig.suptitle("Back-splicing overview", fontsize=14, fontweight="bold")
+def render_overview_plot(output_path: Path, normalized=False):
+    fig_height = max(8.5, 3.5 + 0.42 * len(samples))
+    fig, axes = plt.subplots(2, 3, figsize=(18, fig_height))
+    axes = axes.flatten()
+    title_suffix = "CPM-normalized" if normalized else "raw-count"
+    fig.suptitle(
+        f"Back-splicing overview ({title_suffix})",
+        fontsize=14,
+        fontweight="bold",
+    )
 
-horizontal_metric(
-    axes[0],
-    [bsj_detected.get(s, 0.0) for s in samples],
-    "BSJ-supported circRNAs",
-    "count",
-    "#4E79A7",
-)
+    horizontal_metric(
+        axes[0],
+        [bsj_detected.get(s, 0.0) for s in samples],
+        "BSJ-supported circRNAs",
+        "count",
+        "#4E79A7",
+    )
 
-horizontal_metric(
-    axes[1],
-    [total_bsj_cpm.get(s, 0.0) for s in samples],
-    "Total BSJ CPM",
-    "CPM (unique mapped)",
-    "#76B7B2",
-)
+    if normalized:
+        abundance_values = [total_bsj_cpm.get(s, 0.0) for s in samples]
+        abundance_title = "Total BSJ CPM"
+        abundance_xlabel = "CPM (unique mapped)"
+    else:
+        abundance_values = [total_bsj.get(s, 0.0) for s in samples]
+        abundance_title = "Total BSJ reads"
+        abundance_xlabel = "reads"
+    horizontal_metric(
+        axes[1],
+        abundance_values,
+        abundance_title,
+        abundance_xlabel,
+        "#76B7B2",
+    )
 
-horizontal_metric(
-    axes[2],
-    [med_junction_ratio.get(s, 0.0) for s in samples],
-    "Median junction ratio",
-    "2*BSJ/(2*BSJ+FSJ)",
-    "#59A14F",
-    xmax=1,
-)
+    horizontal_metric(
+        axes[2],
+        [med_junction_ratio.get(s, 0.0) for s in samples],
+        "Median junction ratio",
+        "2*BSJ/(2*BSJ+FSJ)",
+        "#59A14F",
+        xmax=1,
+    )
 
-y = list(range(len(samples)))
-a5_values = [n_a5bs.get(s, 0.0) for s in samples]
-a3_values = [n_a3bs.get(s, 0.0) for s in samples]
-axes[3].barh(y, a5_values, color="#F28E2B", label="A5BS")
-axes[3].barh(y, a3_values, left=a5_values, color="#E15759", label="A3BS")
-axes[3].set_yticks(y)
-axes[3].set_yticklabels(samples, fontsize=8)
-axes[3].invert_yaxis()
-axes[3].set_xlabel("event count")
-axes[3].set_title("Alternative back-splicing events")
-axes[3].legend(fontsize=8)
-clean_axis(axes[3])
+    y = list(range(len(samples)))
+    a5_values = [n_a5bs.get(s, 0.0) for s in samples]
+    a3_values = [n_a3bs.get(s, 0.0) for s in samples]
+    axes[3].barh(y, a5_values, color="#F28E2B", label="A5BS")
+    axes[3].barh(y, a3_values, left=a5_values, color="#E15759", label="A3BS")
+    axes[3].set_yticks(y)
+    axes[3].set_yticklabels(samples, fontsize=8)
+    axes[3].invert_yaxis()
+    axes[3].set_xlabel("event count")
+    axes[3].set_title("Alternative back-splicing events")
+    axes[3].legend(fontsize=8)
+    clean_axis(axes[3])
 
-stacked_horizontal(
-    axes[4],
-    class_fraction,
-    class_bins,
-    ["GU-AG", "GC-AG", "AU-AC", "non-canonical", "unknown"],
-    ["#4E79A7", "#76B7B2", "#F28E2B", "#E15759", "#BAB0AC"],
-    "Splice-site class composition",
-)
+    stacked_horizontal(
+        axes[4],
+        class_fraction,
+        class_bins,
+        ["GU-AG", "GC-AG", "AU-AC", "non-canonical", "unknown"],
+        ["#4E79A7", "#76B7B2", "#F28E2B", "#E15759", "#BAB0AC"],
+        "Splice-site class composition",
+    )
 
-stacked_horizontal(
-    axes[5],
-    abs_class_fraction,
-    abs_class_bins,
-    ["no ABS", "A5BS only", "A3BS only", "A5BS+A3BS"],
-    ["#D0D0D0", "#F28E2B", "#E15759", "#9467BD"],
-    "ABS circRNA composition",
-)
+    stacked_horizontal(
+        axes[5],
+        abs_class_fraction,
+        abs_class_bins,
+        ["no ABS", "A5BS only", "A3BS only", "A5BS+A3BS"],
+        ["#D0D0D0", "#F28E2B", "#E15759", "#9467BD"],
+        "ABS circRNA composition",
+    )
 
-fig.tight_layout(rect=[0, 0.03, 1, 0.95])
-plot_out.parent.mkdir(parents=True, exist_ok=True)
-fig.savefig(plot_out, dpi=150, bbox_inches="tight")
-plt.close(fig)
+    fig.tight_layout(rect=[0, 0.03, 1, 0.95])
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+
+render_overview_plot(plot_out, normalized=False)
+render_overview_plot(cpm_plot_out, normalized=True)

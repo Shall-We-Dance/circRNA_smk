@@ -23,6 +23,7 @@ summary_out = Path(snakemake.output.summary)
 dist_out = Path(snakemake.output.dist)
 abs_out = Path(snakemake.output.abs)
 plot_out = Path(snakemake.output.plot)
+cpm_plot_out = Path(snakemake.output.plot_cpm)
 
 NORMALIZATION_SCALE = 1_000_000.0
 
@@ -724,115 +725,158 @@ def short_event_label(event_id):
     return event_id
 
 
-fig, axes = plt.subplots(2, 3, figsize=(15.5, 8.4), squeeze=False)
-axes = axes.flatten()
-fig.suptitle(f"{sample} back-splicing summary", fontsize=14, fontweight="bold")
-
-summary_lines = [
-    ("circRNAs", len(rows)),
-    ("BSJ > 0", sum(v > 0 for v in bsj_list)),
-    ("total BSJ reads", int(sum(bsj_list))),
-    ("total BSJ CPM", f"{sum(bsj_cpm_list):.3g}"),
-    ("median junction ratio", f"{median(junction_ratio_list):.3g}"),
-    ("A5BS events", len(a5bs_events)),
-    ("A3BS events", len(a3bs_events)),
-    ("ABS circRNAs", len(abs_circs)),
-]
-axes[0].axis("off")
-for i, (label, value) in enumerate(summary_lines):
-    y = 0.92 - i * 0.11
-    axes[0].text(0.05, y, label, ha="left", va="center", color="#555555", fontsize=10)
-    axes[0].text(
-        0.95,
-        y,
-        str(value),
-        ha="right",
-        va="center",
-        color="#1F1F1F",
-        fontsize=12,
+def render_distribution_plot(output_path: Path, normalized=False):
+    fig, axes = plt.subplots(2, 3, figsize=(15.5, 8.4), squeeze=False)
+    axes = axes.flatten()
+    title_suffix = "CPM-normalized" if normalized else "raw-count"
+    fig.suptitle(
+        f"{sample} back-splicing summary ({title_suffix})",
+        fontsize=14,
         fontweight="bold",
     )
-axes[0].set_title("Key metrics", loc="left")
 
-cpm_labels = [
-    "0-.01",
-    ".01-.05",
-    ".05-.1",
-    ".1-.5",
-    ".5-1",
-    "1-2",
-    "2-5",
-    "5-10",
-    "10-20",
-    "20-50",
-    "50+",
-]
-bsj_cpm_counts = count_bins("bsj_cpm_bin", cpm_bins)
-axes[1].bar(
-    range(len(cpm_bins)),
-    [bsj_cpm_counts.get(b, 0) for b in cpm_bins],
-    color="#4E79A7",
-)
-axes[1].set_xticks(range(len(cpm_bins)))
-axes[1].set_xticklabels(cpm_labels, fontsize=8, rotation=35, ha="right")
-axes[1].set_ylabel("circRNA count")
-axes[1].set_title("BSJ CPM support")
-clean_axis(axes[1])
+    if normalized:
+        summary_lines = [
+            ("circRNAs", len(rows)),
+            ("BSJ > 0", sum(v > 0 for v in bsj_list)),
+            ("total BSJ CPM", f"{sum(bsj_cpm_list):.3g}"),
+            ("median BSJ CPM", f"{median(bsj_cpm_list):.3g}"),
+            ("median junction ratio", f"{median(junction_ratio_list):.3g}"),
+            ("A5BS events", len(a5bs_events)),
+            ("A3BS events", len(a3bs_events)),
+            ("ABS circRNAs", len(abs_circs)),
+        ]
+    else:
+        summary_lines = [
+            ("circRNAs", len(rows)),
+            ("BSJ > 0", sum(v > 0 for v in bsj_list)),
+            ("total BSJ reads", int(sum(bsj_list))),
+            ("median BSJ reads", f"{median(bsj_list):.3g}"),
+            ("median junction ratio", f"{median(junction_ratio_list):.3g}"),
+            ("A5BS events", len(a5bs_events)),
+            ("A3BS events", len(a3bs_events)),
+            ("ABS circRNAs", len(abs_circs)),
+        ]
 
-junction_ratio_labels = ["0-.05", ".05-.1", ".1-.25", ".25-.5", ".5-.75", ".75-.9", ".9-.95", ".95-1", "1"]
-junction_ratio_counts = count_bins("junction_ratio_bin", junction_ratio_bins)
-axes[2].bar(
-    range(len(junction_ratio_bins)),
-    [junction_ratio_counts.get(b, 0) for b in junction_ratio_bins],
-    color="#59A14F",
-)
-axes[2].set_xticks(range(len(junction_ratio_bins)))
-axes[2].set_xticklabels(junction_ratio_labels, fontsize=8)
-axes[2].set_ylim(bottom=0)
-axes[2].set_ylabel("circRNA count")
-axes[2].set_title("Junction ratio")
-clean_axis(axes[2])
+    axes[0].axis("off")
+    for i, (label, value) in enumerate(summary_lines):
+        y = 0.92 - i * 0.11
+        axes[0].text(0.05, y, label, ha="left", va="center", color="#555555", fontsize=10)
+        axes[0].text(
+            0.95,
+            y,
+            str(value),
+            ha="right",
+            va="center",
+            color="#1F1F1F",
+            fontsize=12,
+            fontweight="bold",
+        )
+    axes[0].set_title("Key metrics", loc="left")
 
-class_labels = ["GU-AG", "GC-AG", "AU-AC", "non-canonical", "unknown"]
-class_counts = count_bins("splice_site_class", splice_class_bins)
-class_values = [class_counts.get(b, 0) / denom for b in splice_class_bins]
-axes[3].barh(class_labels, class_values, color=["#4E79A7", "#76B7B2", "#F28E2B", "#E15759", "#BAB0AC"])
-axes[3].set_xlim(0, 1)
-axes[3].set_xlabel("fraction")
-axes[3].set_title("Splice-site class")
-clean_axis(axes[3], grid_axis="x")
-
-event_labels = ["A5BS events", "A3BS events", "ABS circRNAs"]
-event_values = [len(a5bs_events), len(a3bs_events), len(abs_circs)]
-axes[4].barh(event_labels, event_values, color=["#F28E2B", "#E15759", "#76B7B2"])
-axes[4].set_xlabel("count")
-axes[4].set_title("Alternative back-splicing")
-clean_axis(axes[4], grid_axis="x")
-
-event_totals = {}
-for row in abs_rows:
-    event_id = row["event_id"]
-    event_totals[event_id] = (
-        row["event_type"],
-        safe_float(row["event_bsj_total_cpm_unique_mapped"]),
-    )
-top_events = sorted(event_totals.items(), key=lambda item: (-item[1][1], item[0]))[:8]
-if top_events:
-    labels = [short_event_label(event_id) for event_id, _ in reversed(top_events)]
-    values = [value for _, (_, value) in reversed(top_events)]
-    colors = [
-        "#F28E2B" if event_type == "A5BS" else "#E15759"
-        for _, (event_type, _) in reversed(top_events)
+    bsj_labels = ["0", "1", "2-4", "5-9", "10-19", "20-49", "50+"]
+    cpm_labels = [
+        "0-.01",
+        ".01-.05",
+        ".05-.1",
+        ".1-.5",
+        ".5-1",
+        "1-2",
+        "2-5",
+        "5-10",
+        "10-20",
+        "20-50",
+        "50+",
     ]
-    axes[5].barh(labels, values, color=colors)
-    axes[5].set_xlabel("event BSJ CPM")
-    axes[5].set_title("Top ABS events")
-    clean_axis(axes[5], grid_axis="x")
-else:
-    empty_panel(axes[5], "No alternative back-splicing events detected")
-    axes[5].set_title("Top ABS events", loc="left")
+    if normalized:
+        abundance_bins = cpm_bins
+        abundance_counts = count_bins("bsj_cpm_bin", cpm_bins)
+        abundance_labels = cpm_labels
+        abundance_title = "BSJ CPM support"
+        rotation = 35
+    else:
+        abundance_bins = bsj_bins
+        abundance_counts = count_bins("bsj_bin", bsj_bins)
+        abundance_labels = bsj_labels
+        abundance_title = "BSJ read support"
+        rotation = 0
+    axes[1].bar(
+        range(len(abundance_bins)),
+        [abundance_counts.get(b, 0) for b in abundance_bins],
+        color="#4E79A7",
+    )
+    axes[1].set_xticks(range(len(abundance_bins)))
+    axes[1].set_xticklabels(
+        abundance_labels,
+        fontsize=8,
+        rotation=rotation,
+        ha="right" if rotation else "center",
+    )
+    axes[1].set_ylabel("circRNA count")
+    axes[1].set_title(abundance_title)
+    clean_axis(axes[1])
 
-fig.tight_layout(rect=[0, 0, 1, 0.94])
-plot_out.parent.mkdir(parents=True, exist_ok=True)
-fig.savefig(plot_out, dpi=150)
-plt.close(fig)
+    junction_ratio_labels = ["0-.05", ".05-.1", ".1-.25", ".25-.5", ".5-.75", ".75-.9", ".9-.95", ".95-1", "1"]
+    junction_ratio_counts = count_bins("junction_ratio_bin", junction_ratio_bins)
+    axes[2].bar(
+        range(len(junction_ratio_bins)),
+        [junction_ratio_counts.get(b, 0) for b in junction_ratio_bins],
+        color="#59A14F",
+    )
+    axes[2].set_xticks(range(len(junction_ratio_bins)))
+    axes[2].set_xticklabels(junction_ratio_labels, fontsize=8)
+    axes[2].set_ylim(bottom=0)
+    axes[2].set_ylabel("circRNA count")
+    axes[2].set_title("Junction ratio")
+    clean_axis(axes[2])
+
+    class_labels = ["GU-AG", "GC-AG", "AU-AC", "non-canonical", "unknown"]
+    class_counts = count_bins("splice_site_class", splice_class_bins)
+    class_values = [class_counts.get(b, 0) / denom for b in splice_class_bins]
+    axes[3].barh(class_labels, class_values, color=["#4E79A7", "#76B7B2", "#F28E2B", "#E15759", "#BAB0AC"])
+    axes[3].set_xlim(0, 1)
+    axes[3].set_xlabel("fraction")
+    axes[3].set_title("Splice-site class")
+    clean_axis(axes[3], grid_axis="x")
+
+    event_labels = ["A5BS events", "A3BS events", "ABS circRNAs"]
+    event_values = [len(a5bs_events), len(a3bs_events), len(abs_circs)]
+    axes[4].barh(event_labels, event_values, color=["#F28E2B", "#E15759", "#76B7B2"])
+    axes[4].set_xlabel("count")
+    axes[4].set_title("Alternative back-splicing")
+    clean_axis(axes[4], grid_axis="x")
+
+    total_field = (
+        "event_bsj_total_cpm_unique_mapped" if normalized else "event_bsj_total"
+    )
+    event_totals = {}
+    for row in abs_rows:
+        event_id = row["event_id"]
+        event_totals[event_id] = (
+            row["event_type"],
+            safe_float(row[total_field]),
+        )
+    top_events = sorted(event_totals.items(), key=lambda item: (-item[1][1], item[0]))[:8]
+    if top_events:
+        labels = [short_event_label(event_id) for event_id, _ in reversed(top_events)]
+        values = [value for _, (_, value) in reversed(top_events)]
+        colors = [
+            "#F28E2B" if event_type == "A5BS" else "#E15759"
+            for _, (event_type, _) in reversed(top_events)
+        ]
+        axes[5].barh(labels, values, color=colors)
+        axes[5].set_xlabel("event BSJ CPM" if normalized else "event BSJ reads")
+        axes[5].set_title("Top ABS events")
+        clean_axis(axes[5], grid_axis="x")
+    else:
+        empty_panel(axes[5], "No alternative back-splicing events detected")
+        axes[5].set_title("Top ABS events", loc="left")
+
+    fig.tight_layout(rect=[0, 0, 1, 0.94])
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output_path, dpi=150)
+    plt.close(fig)
+
+
+render_distribution_plot(plot_out, normalized=False)
+render_distribution_plot(cpm_plot_out, normalized=True)
