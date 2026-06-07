@@ -86,6 +86,10 @@ fastp:
 ciri3:
   enabled: true
 
+igv:
+  # bamCoverage --binSize for RNA-seq BigWig tracks, in bp.
+  bigwig_resolution: 10
+
 deg:
   # These groups/comparisons are shared by CIRI3 DEG, sashimi, and circtools.
   groups:

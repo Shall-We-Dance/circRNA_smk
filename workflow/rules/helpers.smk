@@ -7,6 +7,10 @@ SAMPLE_SET = set(SAMPLES)
 OUTDIR = config["output"]["dir"]
 KEEP_BAM = bool(config.get("output", {}).get("keep_bam", False))
 
+igv_cfg = config.get("igv", {}) or {}
+if not isinstance(igv_cfg, dict):
+    raise ValueError("igv must be a mapping.")
+
 BWA_INDEX_EXTS = ("amb", "ann", "bwt", "pac", "sa")
 BWA_INDEXED_FASTA = config["reference"]["bwa_indexed_fasta"]
 
@@ -74,6 +78,16 @@ def _numeric_config(cfg, key, default, cast, label, minimum=None, maximum=None, 
         if not inclusive_max and parsed >= maximum:
             raise ValueError(f"{label} must be < {maximum}; got {parsed}.")
     return parsed
+
+
+IGV_BIGWIG_RESOLUTION = _numeric_config(
+    igv_cfg,
+    "bigwig_resolution",
+    10,
+    int,
+    "igv.bigwig_resolution",
+    minimum=1,
+)
 
 
 ciri3_cfg = config.get("ciri3", {}) or {}

@@ -8,6 +8,8 @@ rule export_rnaseq_bigwig_tracks:
     log:
         "logs/igv/rnaseq/{sample}.bigwig.log"
     threads: int(config["threads"].get("igv_bigwig", 2))
+    params:
+        bin_size=IGV_BIGWIG_RESOLUTION
     conda:
         "envs/deeptools.yaml"
     shell:
@@ -19,13 +21,13 @@ rule export_rnaseq_bigwig_tracks:
         echo "Input BAM: {input.bam}" >> "{log}"
         echo "Raw BigWig: {output.raw}" >> "{log}"
         echo "Normalized BigWig: {output.normalized}" >> "{log}"
-        echo "bamCoverage binSize=1 samFlagExclude=3844" >> "{log}"
+        echo "bamCoverage binSize={params.bin_size} samFlagExclude=3844" >> "{log}"
 
         bamCoverage \
           --bam "{input.bam}" \
           --outFileName "{output.raw}" \
           --outFileFormat bigwig \
-          --binSize 1 \
+          --binSize {params.bin_size} \
           --normalizeUsing None \
           --samFlagExclude 3844 \
           --numberOfProcessors {threads} \
@@ -35,7 +37,7 @@ rule export_rnaseq_bigwig_tracks:
           --bam "{input.bam}" \
           --outFileName "{output.normalized}" \
           --outFileFormat bigwig \
-          --binSize 1 \
+          --binSize {params.bin_size} \
           --normalizeUsing CPM \
           --samFlagExclude 3844 \
           --numberOfProcessors {threads} \

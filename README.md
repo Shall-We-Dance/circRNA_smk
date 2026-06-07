@@ -173,6 +173,7 @@ Key fields:
 * `samples`: mapping of sample name to lists of FASTQs for R1 and R2
 * `threads`: module-level CPU thread settings (configure each module independently; e.g., `threads.homer` for HOMER, `threads.samtools_view` for CIRI3 SAM conversion, `threads.splicing_stats` for splicing summary scripts)
 * `output.keep_bam`: keep STAR/BWA BAM files (`false` by default to save disk)
+* `igv.bigwig_resolution`: `bamCoverage --binSize` for RNA-seq BigWig tracks, in bp (default `10`)
 * `deg.run_deseq2`: run optional BSJ-level DESeq2 analysis (`false` by default)
 * `deg.run_de_bsj`: run CIRI3 `DE_BSJ` pairwise analysis (`false` by default)
 * `deg.run_de_ratio`: run CIRI3 `DE_Ratio` pairwise analysis (`false` by default)
@@ -215,6 +216,9 @@ threads:
   faidx: 2
   igv_bigwig: 2
   homer: 8
+
+igv:
+  bigwig_resolution: 10
 
 reference:
   star_index: "/path/to/STAR/index"
