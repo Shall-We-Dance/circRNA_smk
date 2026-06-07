@@ -79,8 +79,12 @@ if not abs_fieldnames:
         "alternative_back_splice_site",
         "bsj_count",
         "fsj_count",
+        "uniquely_mapped_reads",
+        "bsj_cpm_unique_mapped",
+        "fsj_cpm_unique_mapped",
         "junction_ratio",
         "event_bsj_total",
+        "event_bsj_total_cpm_unique_mapped",
         "site_count",
         "pcu",
         "rank_by_bsj",
@@ -124,7 +128,7 @@ def dist_fraction_map(feature_name, bins):
 
 
 bsj_detected = metric_map("n_bsj_gt_0")
-total_bsj = metric_map("total_bsj_reads")
+total_bsj_cpm = metric_map("total_bsj_cpm_unique_mapped")
 med_junction_ratio = metric_map("median_junction_ratio")
 n_a5bs = metric_map("n_a5bs_events")
 n_a3bs = metric_map("n_a3bs_events")
@@ -194,9 +198,9 @@ horizontal_metric(
 
 horizontal_metric(
     axes[1],
-    [total_bsj.get(s, 0.0) for s in samples],
-    "Total BSJ reads",
-    "reads",
+    [total_bsj_cpm.get(s, 0.0) for s in samples],
+    "Total BSJ CPM",
+    "CPM (unique mapped)",
     "#76B7B2",
 )
 

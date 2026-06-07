@@ -251,6 +251,7 @@ rule rmats_turbo_pairwise:
         echo "Cleaning rMATS tmp directory before run: $tmpdir_abs" > "$log_abs"
         rm -rf "$tmpdir_abs"
         mkdir -p "$tmpdir_abs"
+        trap 'rm -rf "$tmpdir_abs"' EXIT
 
         cd "$rmats_dir"
         python "$rmats_script_abs" \
@@ -272,6 +273,7 @@ rule rmats_turbo_pairwise:
           test -s "$event_file" || (echo "Missing rMATS event file: $event_file" >> "$log_abs"; exit 1)
         done
         test -s "{output.summary}" || (echo "Missing rMATS summary: {output.summary}" >> "$log_abs"; exit 1)
+        rm -rf "$tmpdir_abs"
         """
 
 
@@ -353,6 +355,7 @@ rule rmats_turbo_group:
         echo "Cleaning rMATS tmp directory before run: $tmpdir_abs" > "$log_abs"
         rm -rf "$tmpdir_abs"
         mkdir -p "$tmpdir_abs"
+        trap 'rm -rf "$tmpdir_abs"' EXIT
 
         cd "$rmats_dir"
         python "$rmats_script_abs" \
@@ -373,6 +376,7 @@ rule rmats_turbo_group:
           test -s "$event_file" || (echo "Missing rMATS event file: $event_file" >> "$log_abs"; exit 1)
         done
         test -s "{output.summary}" || (echo "Missing rMATS summary: {output.summary}" >> "$log_abs"; exit 1)
+        rm -rf "$tmpdir_abs"
         """
 
 
@@ -428,7 +432,6 @@ rule rmats2sashimi_plot_bsj_events:
     output:
         manifest=f"{OUTDIR}/rmats/sashimi/bsj/{{method}}/{{comparison}}/manifest.tsv",
         done=f"{OUTDIR}/rmats/sashimi/bsj/{{method}}/{{comparison}}/plots.done",
-        plots=directory(f"{OUTDIR}/rmats/sashimi/bsj/{{method}}/{{comparison}}/plots"),
         bsj_only_plots=directory(f"{OUTDIR}/rmats/sashimi/bsj/{{method}}/{{comparison}}/plots_bsj_only")
     wildcard_constraints:
         method=BSJ_SASHIMI_METHOD_REGEX,

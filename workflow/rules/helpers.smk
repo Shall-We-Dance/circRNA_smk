@@ -240,11 +240,12 @@ SASHIMI_MAX_EVENTS = _numeric_config(
 SASHIMI_MIN_COUNTS = _numeric_config(
     sashimi_cfg,
     "min_counts",
-    0,
+    1,
     int,
     "sashimi.min_counts",
     minimum=0,
 )
+SASHIMI_PLOT_RMATS_EVENTS = _get_bool(sashimi_cfg, "plot_rmats_events", False)
 SASHIMI_EXON_SCALE = _numeric_config(
     sashimi_cfg,
     "exon_s",
@@ -749,16 +750,20 @@ RMATS_EVENT_TARGETS = (
     else []
 )
 SASHIMI_TARGETS = (
-    [
-        f"{OUTDIR}/rmats/sashimi/{comparison}/{event_type}.{SASHIMI_COUNT_TYPE}/manifest.tsv"
-        for comparison in RMATS_COMPARISON_NAMES
-        for event_type in RMATS_EVENT_TYPES
-    ]
-    + [
-        f"{OUTDIR}/rmats/sashimi/{comparison}/{event_type}.{SASHIMI_COUNT_TYPE}/plots.done"
-        for comparison in RMATS_COMPARISON_NAMES
-        for event_type in RMATS_EVENT_TYPES
-    ]
+    (
+        [
+            f"{OUTDIR}/rmats/sashimi/{comparison}/{event_type}.{SASHIMI_COUNT_TYPE}/manifest.tsv"
+            for comparison in RMATS_COMPARISON_NAMES
+            for event_type in RMATS_EVENT_TYPES
+        ]
+        + [
+            f"{OUTDIR}/rmats/sashimi/{comparison}/{event_type}.{SASHIMI_COUNT_TYPE}/plots.done"
+            for comparison in RMATS_COMPARISON_NAMES
+            for event_type in RMATS_EVENT_TYPES
+        ]
+        if SASHIMI_PLOT_RMATS_EVENTS
+        else []
+    )
     + [
         f"{OUTDIR}/rmats/sashimi/bsj/{method}/{comparison}/manifest.tsv"
         for method in BSJ_SASHIMI_METHODS

@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 ciri3_path = Path(snakemake.input.ciri3)
 bsj_path = Path(snakemake.input.bsj)
 fsj_path = Path(snakemake.input.fsj)
+star_log_path = Path(snakemake.input.star_log)
 fasta_path = Path(snakemake.input.fasta)
 sample = snakemake.wildcards.sample
 
@@ -22,6 +23,8 @@ summary_out = Path(snakemake.output.summary)
 dist_out = Path(snakemake.output.dist)
 abs_out = Path(snakemake.output.abs)
 plot_out = Path(snakemake.output.plot)
+
+NORMALIZATION_SCALE = 1_000_000.0
 
 
 _comp = str.maketrans("ACGTNacgtn", "TGCANtgcan")
@@ -57,6 +60,10 @@ def safe_float(value, default=0.0):
 
 def format_float(value):
     return f"{safe_float(value):.6g}"
+
+
+def format_int(value):
+    return str(int(round(safe_float(value))))
 
 
 def format_optional_float(value):
@@ -104,6 +111,28 @@ def read_matrix_values(path: Path, sample_name: str):
             raw = row[value_col].strip() if len(row) > value_col else "0"
             values[circ_id] = safe_float(raw)
     return values
+
+
+def extract_uniquely_mapped_reads(path: Path):
+    pattern = re.compile(r"^\s*Uniquely mapped reads number\s*\|\s*([0-9,]+)")
+    with path.open() as fh:
+        for line in fh:
+            match = pattern.match(line)
+            if not match:
+                continue
+            value = safe_float(match.group(1).replace(",", ""))
+            if value <= 0:
+                raise ValueError(
+                    f"Uniquely mapped reads number must be positive in {path}: {value}"
+                )
+            return value
+    raise ValueError(f"Could not find 'Uniquely mapped reads number' in {path}")
+
+
+def count_to_cpm(count, denominator):
+    if denominator <= 0:
+        return 0.0
+    return (safe_float(count) / denominator) * NORMALIZATION_SCALE
 
 
 def first_existing(fieldnames, candidates):
@@ -259,11 +288,13 @@ def assign_abs_events(rows):
                 "a5bs_event_id": "NA",
                 "a5bs_site_count": "0",
                 "a5bs_event_bsj_total": "0",
+                "a5bs_event_bsj_total_cpm_unique_mapped": "0",
                 "a5bs_pcu": "0",
                 "a5bs_rank_by_bsj": "NA",
                 "a3bs_event_id": "NA",
                 "a3bs_site_count": "0",
                 "a3bs_event_bsj_total": "0",
+                "a3bs_event_bsj_total_cpm_unique_mapped": "0",
                 "a3bs_pcu": "0",
                 "a3bs_rank_by_bsj": "NA",
             }
@@ -292,6 +323,9 @@ def assign_abs_events(rows):
         for (chrom, strand, shared_site), members in groups.items():
             site_count = len({member[variable_col] for member in members})
             total_bsj = sum(safe_float(member["bsj_count"]) for member in members)
+            total_bsj_cpm = sum(
+                safe_float(member["bsj_cpm_unique_mapped"]) for member in members
+            )
             event_id = f"{event_type}|{chrom}|{strand}|{shared_label}:{shared_site}"
             ranked = sorted(
                 members,
@@ -303,6 +337,9 @@ def assign_abs_events(rows):
                 row[f"{prefix}_event_id"] = event_id
                 row[f"{prefix}_site_count"] = str(site_count)
                 row[f"{prefix}_event_bsj_total"] = format_float(total_bsj)
+                row[f"{prefix}_event_bsj_total_cpm_unique_mapped"] = format_float(
+                    total_bsj_cpm
+                )
                 row[f"{prefix}_pcu"] = format_float(bsj / total_bsj if total_bsj else 0)
                 row[f"{prefix}_rank_by_bsj"] = str(rank)
 
@@ -344,8 +381,14 @@ def make_abs_rows(rows):
                     "alternative_back_splice_site": row[variable_col],
                     "bsj_count": row["bsj_count"],
                     "fsj_count": row["fsj_count"],
+                    "uniquely_mapped_reads": row["uniquely_mapped_reads"],
+                    "bsj_cpm_unique_mapped": row["bsj_cpm_unique_mapped"],
+                    "fsj_cpm_unique_mapped": row["fsj_cpm_unique_mapped"],
                     "junction_ratio": row["junction_ratio"],
                     "event_bsj_total": row[f"{prefix}_event_bsj_total"],
+                    "event_bsj_total_cpm_unique_mapped": row[
+                        f"{prefix}_event_bsj_total_cpm_unique_mapped"
+                    ],
                     "site_count": row[f"{prefix}_site_count"],
                     "pcu": row[f"{prefix}_pcu"],
                     "rank_by_bsj": row[f"{prefix}_rank_by_bsj"],
@@ -357,12 +400,14 @@ def make_abs_rows(rows):
 
 bsj_edges = [0, 1, 2, 5, 10, 20, 50]
 fsj_edges = [0, 1, 2, 5, 10, 20, 50]
+cpm_edges = [0, 0.01, 0.05, 0.1, 0.5, 1, 2, 5, 10, 20, 50]
 ratio_edges = [0, 0.25, 0.5, 1, 2, 5, 10]
 junction_ratio_edges = [0, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 1]
 span_edges = [0, 200, 500, 1000, 2000, 5000, 10000]
 
 bsj_values = read_matrix_values(bsj_path, sample)
 fsj_values = read_matrix_values(fsj_path, sample)
+uniquely_mapped_reads = extract_uniquely_mapped_reads(star_log_path)
 ciri3_meta = load_ciri3_meta(ciri3_path)
 
 all_ids = sorted(set(bsj_values) | set(fsj_values))
@@ -377,6 +422,8 @@ with pysam.FastaFile(str(fasta_path)) as fa:
         span = end - start + 1
         bsj = bsj_values.get(circ_id, 0.0)
         fsj = fsj_values.get(circ_id, 0.0)
+        bsj_cpm = count_to_cpm(bsj, uniquely_mapped_reads)
+        fsj_cpm = count_to_cpm(fsj, uniquely_mapped_reads)
         ratio = (bsj + 1.0) / (fsj + 1.0)
         junc_ratio = junction_ratio(bsj, fsj)
         meta = ciri3_meta.get(circ_id, {})
@@ -403,6 +450,9 @@ with pysam.FastaFile(str(fasta_path)) as fa:
                 "high_quality_bsj_reads": meta.get("high_quality_bsj_reads", "NA"),
                 "bsj_count": format_float(bsj),
                 "fsj_count": format_float(fsj),
+                "uniquely_mapped_reads": format_int(uniquely_mapped_reads),
+                "bsj_cpm_unique_mapped": format_float(bsj_cpm),
+                "fsj_cpm_unique_mapped": format_float(fsj_cpm),
                 "bsj_fsj_ratio": format_float(ratio),
                 "log2_bsj_fsj_ratio": format_float(math.log2(ratio)),
                 "junction_ratio": format_float(junc_ratio),
@@ -416,6 +466,8 @@ with pysam.FastaFile(str(fasta_path)) as fa:
                 "splice_site_class": splice_class(donor, acceptor),
                 "bsj_bin": value_bin(bsj, bsj_edges),
                 "fsj_bin": value_bin(fsj, fsj_edges),
+                "bsj_cpm_bin": value_bin(bsj_cpm, cpm_edges),
+                "fsj_cpm_bin": value_bin(fsj_cpm, cpm_edges),
                 "ratio_bin": value_bin(ratio, ratio_edges),
                 "junction_ratio_bin": value_bin(junc_ratio, junction_ratio_edges),
                 "span_bin": value_bin(span, span_edges),
@@ -443,6 +495,9 @@ with circ_table_out.open("w", newline="") as fh:
         "high_quality_bsj_reads",
         "bsj_count",
         "fsj_count",
+        "uniquely_mapped_reads",
+        "bsj_cpm_unique_mapped",
+        "fsj_cpm_unique_mapped",
         "bsj_fsj_ratio",
         "log2_bsj_fsj_ratio",
         "junction_ratio",
@@ -458,15 +513,19 @@ with circ_table_out.open("w", newline="") as fh:
         "a5bs_event_id",
         "a5bs_site_count",
         "a5bs_event_bsj_total",
+        "a5bs_event_bsj_total_cpm_unique_mapped",
         "a5bs_pcu",
         "a5bs_rank_by_bsj",
         "a3bs_event_id",
         "a3bs_site_count",
         "a3bs_event_bsj_total",
+        "a3bs_event_bsj_total_cpm_unique_mapped",
         "a3bs_pcu",
         "a3bs_rank_by_bsj",
         "bsj_bin",
         "fsj_bin",
+        "bsj_cpm_bin",
+        "fsj_cpm_bin",
         "ratio_bin",
         "junction_ratio_bin",
         "span_bin",
@@ -494,8 +553,12 @@ with abs_out.open("w", newline="") as fh:
         "alternative_back_splice_site",
         "bsj_count",
         "fsj_count",
+        "uniquely_mapped_reads",
+        "bsj_cpm_unique_mapped",
+        "fsj_cpm_unique_mapped",
         "junction_ratio",
         "event_bsj_total",
+        "event_bsj_total_cpm_unique_mapped",
         "site_count",
         "pcu",
         "rank_by_bsj",
@@ -507,6 +570,8 @@ with abs_out.open("w", newline="") as fh:
 
 bsj_list = [safe_float(r["bsj_count"]) for r in rows]
 fsj_list = [safe_float(r["fsj_count"]) for r in rows]
+bsj_cpm_list = [safe_float(r["bsj_cpm_unique_mapped"]) for r in rows]
+fsj_cpm_list = [safe_float(r["fsj_cpm_unique_mapped"]) for r in rows]
 ratio_list = [safe_float(r["bsj_fsj_ratio"]) for r in rows]
 junction_ratio_list = [safe_float(r["junction_ratio"]) for r in rows]
 span_list = [int(r["circ_span"]) for r in rows]
@@ -526,13 +591,19 @@ denom = max(len(rows), 1)
 
 metrics = [
     ("sample", sample),
+    ("uniquely_mapped_reads", int(uniquely_mapped_reads)),
+    ("normalization_scale", int(NORMALIZATION_SCALE)),
     ("n_circRNAs", len(rows)),
     ("n_bsj_gt_0", sum(v > 0 for v in bsj_list)),
     ("n_fsj_gt_0", sum(v > 0 for v in fsj_list)),
     ("total_bsj_reads", sum(bsj_list)),
     ("total_fsj_reads", sum(fsj_list)),
+    ("total_bsj_cpm_unique_mapped", sum(bsj_cpm_list)),
+    ("total_fsj_cpm_unique_mapped", sum(fsj_cpm_list)),
     ("median_bsj", median(bsj_list)),
     ("median_fsj", median(fsj_list)),
+    ("median_bsj_cpm_unique_mapped", median(bsj_cpm_list)),
+    ("median_fsj_cpm_unique_mapped", median(fsj_cpm_list)),
     ("median_ratio", median(ratio_list)),
     ("median_junction_ratio", median(junction_ratio_list)),
     ("n_junction_ratio_ge_0_5", sum(v >= 0.5 for v in junction_ratio_list)),
@@ -581,6 +652,7 @@ def unique_bins(column, preferred=()):
 
 bsj_bins = [f"[{bsj_edges[i]},{bsj_edges[i+1]})" for i in range(len(bsj_edges) - 1)] + [f">={bsj_edges[-1]}"]
 fsj_bins = [f"[{fsj_edges[i]},{fsj_edges[i+1]})" for i in range(len(fsj_edges) - 1)] + [f">={fsj_edges[-1]}"]
+cpm_bins = [f"[{cpm_edges[i]},{cpm_edges[i+1]})" for i in range(len(cpm_edges) - 1)] + [f">={cpm_edges[-1]}"]
 ratio_bins = [f"[{ratio_edges[i]},{ratio_edges[i+1]})" for i in range(len(ratio_edges) - 1)] + [f">={ratio_edges[-1]}"]
 junction_ratio_bins = [
     f"[{junction_ratio_edges[i]},{junction_ratio_edges[i+1]})"
@@ -604,6 +676,8 @@ pair_bins = sorted({r["splice_site_pair_rna"] for r in rows})
 bin_specs = [
     ("bsj_count", "bsj_bin", bsj_bins),
     ("fsj_count", "fsj_bin", fsj_bins),
+    ("bsj_cpm_unique_mapped", "bsj_cpm_bin", cpm_bins),
+    ("fsj_cpm_unique_mapped", "fsj_cpm_bin", cpm_bins),
     ("bsj_fsj_ratio", "ratio_bin", ratio_bins),
     ("junction_ratio", "junction_ratio_bin", junction_ratio_bins),
     ("circ_span", "span_bin", span_bins),
@@ -658,6 +732,7 @@ summary_lines = [
     ("circRNAs", len(rows)),
     ("BSJ > 0", sum(v > 0 for v in bsj_list)),
     ("total BSJ reads", int(sum(bsj_list))),
+    ("total BSJ CPM", f"{sum(bsj_cpm_list):.3g}"),
     ("median junction ratio", f"{median(junction_ratio_list):.3g}"),
     ("A5BS events", len(a5bs_events)),
     ("A3BS events", len(a3bs_events)),
@@ -665,7 +740,7 @@ summary_lines = [
 ]
 axes[0].axis("off")
 for i, (label, value) in enumerate(summary_lines):
-    y = 0.92 - i * 0.13
+    y = 0.92 - i * 0.11
     axes[0].text(0.05, y, label, ha="left", va="center", color="#555555", fontsize=10)
     axes[0].text(
         0.95,
@@ -679,17 +754,29 @@ for i, (label, value) in enumerate(summary_lines):
     )
 axes[0].set_title("Key metrics", loc="left")
 
-bsj_labels = ["0", "1", "2-4", "5-9", "10-19", "20-49", "50+"]
-bsj_counts = count_bins("bsj_bin", bsj_bins)
+cpm_labels = [
+    "0-.01",
+    ".01-.05",
+    ".05-.1",
+    ".1-.5",
+    ".5-1",
+    "1-2",
+    "2-5",
+    "5-10",
+    "10-20",
+    "20-50",
+    "50+",
+]
+bsj_cpm_counts = count_bins("bsj_cpm_bin", cpm_bins)
 axes[1].bar(
-    range(len(bsj_bins)),
-    [bsj_counts.get(b, 0) for b in bsj_bins],
+    range(len(cpm_bins)),
+    [bsj_cpm_counts.get(b, 0) for b in cpm_bins],
     color="#4E79A7",
 )
-axes[1].set_xticks(range(len(bsj_bins)))
-axes[1].set_xticklabels(bsj_labels, fontsize=8)
+axes[1].set_xticks(range(len(cpm_bins)))
+axes[1].set_xticklabels(cpm_labels, fontsize=8, rotation=35, ha="right")
 axes[1].set_ylabel("circRNA count")
-axes[1].set_title("BSJ read support")
+axes[1].set_title("BSJ CPM support")
 clean_axis(axes[1])
 
 junction_ratio_labels = ["0-.05", ".05-.1", ".1-.25", ".25-.5", ".5-.75", ".75-.9", ".9-.95", ".95-1", "1"]
@@ -727,7 +814,7 @@ for row in abs_rows:
     event_id = row["event_id"]
     event_totals[event_id] = (
         row["event_type"],
-        safe_float(row["event_bsj_total"]),
+        safe_float(row["event_bsj_total_cpm_unique_mapped"]),
     )
 top_events = sorted(event_totals.items(), key=lambda item: (-item[1][1], item[0]))[:8]
 if top_events:
@@ -738,7 +825,7 @@ if top_events:
         for _, (event_type, _) in reversed(top_events)
     ]
     axes[5].barh(labels, values, color=colors)
-    axes[5].set_xlabel("event BSJ reads")
+    axes[5].set_xlabel("event BSJ CPM")
     axes[5].set_title("Top ABS events")
     clean_axis(axes[5], grid_axis="x")
 else:

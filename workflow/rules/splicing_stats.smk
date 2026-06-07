@@ -3,6 +3,7 @@ rule compute_splicing_site_stats:
         ciri3=f"{OUTDIR}/ciri3/per_sample/{{sample}}.ciri3",
         bsj=f"{OUTDIR}/ciri3/per_sample/{{sample}}.ciri3.BSJ_Matrix",
         fsj=f"{OUTDIR}/ciri3/per_sample/{{sample}}.ciri3.FSJ_Matrix",
+        star_log=f"{OUTDIR}/star/{{sample}}/{{sample}}.Log.final.out",
         fasta=config["reference"]["fasta"]
     output:
         circ_table=f"{OUTDIR}/splicing/{{sample}}/circ_splice_sites.tsv",

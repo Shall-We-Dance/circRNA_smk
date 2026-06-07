@@ -8,7 +8,7 @@
      bamfile_num = len(bam_group)
      all_c = []
      for i in range(bamfile_num):
-@@ -83,12 +84,14 @@
+@@ -83,12 +84,20 @@
          else:
              cover = int(output) / 1e6
          all_c.append(cover)
@@ -21,10 +21,16 @@
          jxns[j_key] = int(round(1.0 * jxns[j_key] / bamfile_num, 0))
 +    for j_key in list(bsj_jxns.keys()):
 +        bsj_jxns[j_key] = int(round(1.0 * bsj_jxns[j_key] / bamfile_num, 0))
++    for j_key in list(jxns.keys()):
++        if jxns[j_key] <= 0:
++            del jxns[j_key]
++    for j_key in list(bsj_jxns.keys()):
++        if bsj_jxns[j_key] <= 0:
++            del bsj_jxns[j_key]
      # gene_reads = sam_utils.fetch_bam_reads_in_gene(bamfile, gene_obj.chrom,\
      #     tx_start, tx_end, gene_obj)
      # reads, num_raw_reads = sam_utils.sam_parse_reads(gene_reads,\
-@@ -131,49 +134,60 @@
+@@ -131,49 +140,61 @@
      min_counts = settings["min_counts"]  # if the jxn is smaller than it, then omit the text plotting
      show_text_background = settings["text_background"]
      maxy = 0
@@ -99,12 +105,13 @@
 +                       (ss2, rightdens + h),
 +                       (ss2, rightdens)]
 +                midpt = cubic_bezier(pts, .5)
-+            if min_counts == 0 or junction_counts[jxn] >= min_counts:
++            if junction_counts[jxn] > 0 and (min_counts == 0 or junction_counts[jxn] >= min_counts):
 +                if number_junctions:
 +                    label = "BSJ=%s" % (junction_counts[jxn]) if is_bsj else "%s" % (junction_counts[jxn])
 +                    if show_text_background:
 +                        txt = text(midpt[0], midpt[1], label,
-+                            fontsize=font_size-2, ha='center', va='center', backgroundcolor='w')
++                            fontsize=font_size-2, ha='center', va='center',
++                            bbox=dict(facecolor='white', edgecolor='none', alpha=0.75, boxstyle='square,pad=0.06'))
 +                    else:
 +                        txt = text(midpt[0], midpt[1], label,
 +                            fontsize=font_size-2, ha='center', va='center')
@@ -123,7 +130,7 @@
  
      # Format plot
      # ylim(ymin, ymax)
-@@ -536,7 +547,7 @@
+@@ -536,7 +557,7 @@
      return graphcoords, graphToGene
  
  
@@ -132,7 +139,7 @@
      """
      Convert reads to wiggles; uses pysam.
      """
-@@ -581,9 +592,12 @@
+@@ -581,9 +602,12 @@
                             and rightss > tx_start and rightss < tx_end:
                          jxn = ":".join(map(str, [leftss, rightss]))
 +                        counts = jxns
