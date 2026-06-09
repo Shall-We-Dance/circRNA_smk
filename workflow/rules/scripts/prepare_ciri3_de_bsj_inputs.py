@@ -1,4 +1,6 @@
 import csv
+import keyword
+import re
 from pathlib import Path
 
 
@@ -39,6 +41,48 @@ def normalize_featurecounts_colname(name):
     return base
 
 
+R_RESERVED_WORDS = {
+    "if", "else", "repeat", "while", "function", "for", "in", "next", "break",
+    "TRUE", "FALSE", "NULL", "Inf", "NaN", "NA", "NA_integer_", "NA_real_",
+    "NA_complex_", "NA_character_",
+}
+
+
+def r_safe_name(name):
+    safe = re.sub(r"[^A-Za-z0-9._]", ".", str(name))
+    if not safe:
+        safe = "X"
+    if safe[0].isdigit() or (safe[0] == "." and len(safe) > 1 and safe[1].isdigit()):
+        safe = "X" + safe
+    if safe in R_RESERVED_WORDS or keyword.iskeyword(safe):
+        safe += "."
+    return safe
+
+
+def unique_names(names):
+    used = set()
+    counts = {}
+    out = []
+    for name in names:
+        base = r_safe_name(name)
+        candidate = base
+        while candidate in used:
+            counts[base] = counts.get(base, 0) + 1
+            candidate = f"{base}.{counts[base]}"
+        used.add(candidate)
+        counts.setdefault(base, 0)
+        out.append(candidate)
+    return out
+
+
+def sample_output_name_map(samples):
+    aliases = unique_names(samples)
+    return dict(zip(samples, aliases))
+
+
+sample_output_names = sample_output_name_map(selected_samples)
+
+
 missing_ciri3 = [sample for sample in selected_samples if sample not in sample_to_ciri3]
 if missing_ciri3:
     raise ValueError(
@@ -52,7 +96,7 @@ with info_out.open("w", newline="") as fh:
     writer.writerow(["Sample", "Path", "Class"])
     for sample in selected_samples:
         writer.writerow([
-            sample,
+            sample_output_names[sample],
             str(sample_to_ciri3[sample].resolve()),
             sample_classes[sample],
         ])
@@ -69,7 +113,7 @@ keep_idx = [0] + [bsj_header.index(sample) for sample in selected_samples]
 bsj_matrix_out.parent.mkdir(parents=True, exist_ok=True)
 with bsj_matrix_out.open("w", newline="") as fh:
     writer = csv.writer(fh, delimiter="\t")
-    writer.writerow([bsj_header[i] for i in keep_idx])
+    writer.writerow([bsj_header[0]] + [sample_output_names[sample] for sample in selected_samples])
     for row in bsj_rows:
         padded = row + [""] * (len(bsj_header) - len(row))
         writer.writerow([padded[i] if padded[i] != "" else "0" for i in keep_idx])
@@ -105,7 +149,7 @@ if missing_fc:
 gene_expression_out.parent.mkdir(parents=True, exist_ok=True)
 with gene_expression_out.open("w", newline="") as fh:
     writer = csv.writer(fh, delimiter="\t")
-    writer.writerow(["Geneid"] + selected_samples)
+    writer.writerow(["Geneid"] + [sample_output_names[sample] for sample in selected_samples])
     for row in fc_rows[1:]:
         padded = row + ["0"] * (len(fc_header) - len(row))
         out_row = [padded[geneid_idx]]
@@ -118,3 +162,13 @@ log_message(
     f"Prepared CIRI3 DE_BSJ inputs for {comparison}: "
     f"{len(selected_samples)} samples, {len(bsj_rows)} BSJ rows, {len(fc_rows) - 1} genes."
 )
+renamed_samples = [
+    f"{sample}->{sample_output_names[sample]}"
+    for sample in selected_samples
+    if sample != sample_output_names[sample]
+]
+if renamed_samples:
+    log_message(
+        "Normalized CIRI3 DE sample names for R compatibility: "
+        + ", ".join(renamed_samples)
+    )
