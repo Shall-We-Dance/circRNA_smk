@@ -290,6 +290,7 @@ rule ciri3_run_de_relative:
 rule ciri3_de_bsj_pairwise_plots:
     input:
         result=f"{CIRI3_DE_OUTDIR}/{{comparison}}/de_bsj/result.txt",
+        info=f"{CIRI3_DE_OUTDIR}/{{comparison}}/de_bsj/infor.tsv",
         bsj_matrix=f"{CIRI3_DE_OUTDIR}/{{comparison}}/de_bsj/BSJ_Matrix.txt",
         ciri3=f"{OUTDIR}/ciri3/all_samples.ciri3"
     output:
@@ -318,6 +319,7 @@ rule ciri3_de_bsj_pairwise_plots:
 rule ciri3_de_ratio_pairwise_plots:
     input:
         result=f"{CIRI3_DE_OUTDIR}/{{comparison}}/de_ratio/result.txt",
+        info=f"{CIRI3_DE_OUTDIR}/{{comparison}}/de_ratio/infor.tsv",
         bsj_matrix=f"{CIRI3_DE_OUTDIR}/{{comparison}}/de_ratio/BSJ_Matrix.txt",
         fsj_matrix=f"{CIRI3_DE_OUTDIR}/{{comparison}}/de_ratio/FSJ_Matrix.txt",
         ciri3=f"{OUTDIR}/ciri3/all_samples.ciri3"
@@ -347,6 +349,7 @@ rule ciri3_de_ratio_pairwise_plots:
 rule ciri3_de_relative_pairwise_plots:
     input:
         result=f"{CIRI3_DE_OUTDIR}/{{comparison}}/de_relative/result.txt",
+        info=f"{CIRI3_DE_OUTDIR}/{{comparison}}/de_relative/infor.tsv",
         bsj_matrix=f"{CIRI3_DE_OUTDIR}/{{comparison}}/de_relative/BSJ_Matrix.txt",
         ciri3=f"{OUTDIR}/ciri3/all_samples.ciri3"
     output:

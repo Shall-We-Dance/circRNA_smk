@@ -290,6 +290,45 @@ sample_group_map <- function(groups) {
   out[!duplicated(names(out))]
 }
 
+read_pairwise_info_group_map <- function(path, case_group, control_group) {
+  if (is.na(path) || !nzchar(path) || !file.exists(path)) {
+    return(NULL)
+  }
+  info <- tryCatch(
+    read.table(
+      path,
+      header = TRUE,
+      sep = "\t",
+      check.names = FALSE,
+      stringsAsFactors = FALSE,
+      quote = "",
+      comment.char = "",
+      fill = TRUE
+    ),
+    error = function(e) {
+      warning("Unable to parse CIRI3 pairwise info table: ", conditionMessage(e))
+      NULL
+    }
+  )
+  if (is.null(info) || nrow(info) == 0 || !all(c("Sample", "Class") %in% colnames(info))) {
+    return(NULL)
+  }
+
+  sample_ids <- trimws(as.character(info[["Sample"]]))
+  sample_classes <- trimws(as.character(info[["Class"]]))
+  keep <- !is.na(sample_ids) & nzchar(sample_ids)
+  if (!any(keep)) {
+    return(NULL)
+  }
+
+  sample_classes <- ifelse(
+    sample_classes == "Case",
+    case_group,
+    ifelse(sample_classes == "Control", control_group, sample_classes)
+  )
+  setNames(sample_classes[keep], sample_ids[keep])
+}
+
 plot_blank <- function(out_file, title, message, width = 7, height = 5) {
   dir.create(dirname(out_file), recursive = TRUE, showWarnings = FALSE)
   pdf(out_file, width = width, height = height)
@@ -536,8 +575,11 @@ if (mode == "pairwise") {
   case_group <- as.character(comparison[["case_group"]])
   control_group <- as.character(comparison[["control_group"]])
   pair_samples <- c(as.character(unlist(comparison[["case"]])), as.character(unlist(comparison[["control"]])))
-  group_map <- all_group_map[pair_samples]
-  group_map <- group_map[!is.na(group_map)]
+  group_map <- read_pairwise_info_group_map(input_path("info"), case_group, control_group)
+  if (is.null(group_map)) {
+    group_map <- all_group_map[pair_samples]
+    group_map <- group_map[!is.na(group_map)]
+  }
 
   if (!isTRUE(result_df$effect_from_result[1])) {
     result_df$effect <- matrix_effect(result_df, value_mat, group_map, case_group, control_group)
