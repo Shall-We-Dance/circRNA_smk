@@ -1,3 +1,4 @@
+import atexit
 import csv
 import math
 import os
@@ -68,6 +69,52 @@ def format_ratio(value):
 def snakemake_named_path(collection, name, fallback):
     value = getattr(collection, name, None)
     return Path(value) if value not in (None, "") else fallback
+
+
+RUNTIME_CACHE_DIR_NAMES = {"Sashimi_index", "ciri3_miso_inputs"}
+RUNTIME_CACHE_FILE_SUFFIXES = {".pickle"}
+
+
+def cleanup_runtime_files(root, extra_dirs=()):
+    root = Path(root)
+    removed_dirs = []
+    removed_files = []
+
+    for extra_dir in extra_dirs:
+        path = Path(extra_dir)
+        if path.exists():
+            shutil.rmtree(path)
+            removed_dirs.append(str(path.resolve()))
+
+    if root.exists():
+        cache_dirs = [
+            path
+            for path in root.rglob("*")
+            if path.is_dir() and path.name in RUNTIME_CACHE_DIR_NAMES
+        ]
+        for path in sorted(cache_dirs, key=lambda value: len(value.parts), reverse=True):
+            if path.exists():
+                shutil.rmtree(path)
+                removed_dirs.append(str(path.resolve()))
+
+        cache_files = [
+            path
+            for path in root.rglob("*")
+            if path.is_file() and path.suffix in RUNTIME_CACHE_FILE_SUFFIXES
+        ]
+        for path in cache_files:
+            if path.exists():
+                path.unlink()
+                removed_files.append(str(path.resolve()))
+
+    return {"dirs": removed_dirs, "files": removed_files}
+
+
+def cleanup_runtime_files_quietly(root, extra_dirs=()):
+    try:
+        cleanup_runtime_files(root, extra_dirs)
+    except OSError:
+        pass
 
 
 def gff3_attrs(attrs):
@@ -1153,7 +1200,7 @@ bsj_matrix_path = Path(snakemake.input.bsj_matrix)
 fsj_matrix_path = Path(snakemake.input.fsj_matrix)
 samples_path = Path(snakemake.input.samples)
 base_gff3 = Path(snakemake.input.gff3).resolve()
-outdir = Path(snakemake.params.outdir)
+outdir = Path(snakemake.params.outdir).resolve()
 plots_root = snakemake_named_path(
     snakemake.output,
     "plots",
@@ -1164,12 +1211,17 @@ bsj_only_plots_root = snakemake_named_path(
     "bsj_only_plots",
     outdir / "plots_bsj_only",
 )
-annotation_root = outdir / "annotations"
+annotation_root = (outdir / "annotations").resolve()
 bsj_only_annotation_root = annotation_root / "bsj_only"
-augmented_gff3 = (annotation_root / "bsj_augmented.gff3").resolve()
+augmented_gff3 = annotation_root / "bsj_augmented.gff3"
 manifest_path = Path(snakemake.output.manifest)
 done_path = Path(snakemake.output.done)
 log_path = Path(snakemake.log[0])
+atexit.register(cleanup_runtime_files_quietly, outdir, (annotation_root,))
+annotation_cleanup_status = "not_run"
+runtime_cleanup_status = "not_run"
+runtime_cache_dirs_removed = 0
+runtime_cache_files_removed = 0
 
 method = str(snakemake.wildcards.method)
 comparison = str(snakemake.wildcards.comparison)
@@ -1506,6 +1558,23 @@ with open(log_path, "w") as log_handle:
             }
         )
 
+    cleanup_summary = cleanup_runtime_files(outdir, (annotation_root,))
+    runtime_cache_dirs_removed = len(cleanup_summary["dirs"])
+    runtime_cache_files_removed = len(cleanup_summary["files"])
+    runtime_cleanup_status = "ok"
+    annotation_cleanup_status = (
+        "removed"
+        if str(annotation_root.resolve()) in cleanup_summary["dirs"]
+        else "missing"
+    )
+    log_handle.write(
+        f"\nTemporary BSJ sashimi runtime cleanup: status={runtime_cleanup_status}; "
+        f"dirs_removed={runtime_cache_dirs_removed}; "
+        f"files_removed={runtime_cache_files_removed}; "
+        f"annotation_dir_status={annotation_cleanup_status}; "
+        f"annotation_path={annotation_root.resolve()}\n"
+    )
+
 plots_root.mkdir(parents=True, exist_ok=True)
 bsj_only_plots_root.mkdir(parents=True, exist_ok=True)
 
@@ -1580,4 +1649,9 @@ done_path.write_text(
     f"plots_failed\t{sum(1 for row in manifest_rows if row['status'] == 'failed')}\n"
     f"bsj_only_plots_ok\t{sum(1 for row in manifest_rows if row['bsj_only_status'] == 'ok')}\n"
     f"bsj_only_plots_failed\t{sum(1 for row in manifest_rows if row['bsj_only_status'] == 'failed')}\n"
+    f"temporary_annotation_dir\t{annotation_root.resolve()}\n"
+    f"temporary_annotation_dir_status\t{annotation_cleanup_status}\n"
+    f"temporary_runtime_cleanup_status\t{runtime_cleanup_status}\n"
+    f"temporary_runtime_cache_dirs_removed\t{runtime_cache_dirs_removed}\n"
+    f"temporary_runtime_cache_files_removed\t{runtime_cache_files_removed}\n"
 )

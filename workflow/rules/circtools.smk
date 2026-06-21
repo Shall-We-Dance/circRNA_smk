@@ -302,6 +302,13 @@ rule circtools_detect:
         test -s "{output.circ_count}" || (echo "Missing CircRNACount" >> "{log}"; exit 1)
         test -s "{output.circ_coord}" || (echo "Missing CircCoordinates" >> "{log}"; exit 1)
         test -s "{output.linear_count}" || (echo "Missing LinearCount" >> "{log}"; exit 1)
+
+        for jct in {input.mate2_junctions}; do
+          if [ -e "$jct.fixed" ]; then
+            rm -f "$jct.fixed"
+            echo "Removed temporary circtools mate2 fixed junction: $jct.fixed" >> "{log}"
+          fi
+        done
         """
 
 
